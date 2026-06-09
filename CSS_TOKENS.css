@@ -1,0 +1,66 @@
+:root {
+  /* Color Tokens - Mission Operations Deck */
+  --color-base-bg: hsl(224, 25%, 8%);
+  --color-surface-bg: hsl(224, 25%, 12%);
+  --color-surface-border: hsl(224, 15%, 20%);
+  
+  --color-primary: hsl(210, 100%, 60%);     /* Active signals */
+  --color-success: hsl(145, 80%, 45%);      /* EDS On */
+  --color-warning: hsl(38, 95%, 55%);       /* EDS Off */
+  --color-error: hsl(355, 85%, 55%);        /* Degradation */
+  
+  --color-text-main: hsl(210, 20%, 95%);
+  --color-text-muted: hsl(210, 15%, 70%);
+  --color-text-inverted: hsl(224, 25%, 8%);
+  
+  /* Typography Scale */
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  
+  --text-size-title: clamp(1.5rem, 4vw, 3rem);
+  --text-size-header: 1.25rem;
+  --text-size-body: 1rem;
+  --text-size-small: 0.85rem;
+  
+  /* Layout & Spacing */
+  --space-unit: 8px;
+  --space-xs: calc(var(--space-unit) * 0.5); /* 4px */
+  --space-sm: var(--space-unit);             /* 8px */
+  --space-md: calc(var(--space-unit) * 2);   /* 16px */
+  --space-lg: calc(var(--space-unit) * 3);   /* 24px */
+  --space-xl: calc(var(--space-unit) * 4);   /* 32px */
+  
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  
+  /* Motion & Dynamics */
+  --transition-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-enter: 200ms;
+  --duration-exit: 120ms;
+}
+
+/* Base resets & theme styles */
+body {
+  background-color: var(--color-base-bg);
+  color: var(--color-text-main);
+  font-family: var(--font-body);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Accessibility: Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-enter: 0ms;
+    --duration-exit: 0ms;
+  }
+  * {
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "baselines": {
+    "initial_dust_coverage": 100.0,
+    "initial_panel_efficiency_degradation": 0.0,
+    "empirical_degradation_factor": 1.2,
+    "nasa_clearing_speed_reference": "90% removal in 15 seconds at 1000V 3-phase AC"
+  },
+  "metrics": [
+    {
+      "name": "Dust Coverage (%)",
+      "formula": "(Active Particle Count / Initial Particle Count) * 100",
+      "target": "<5% after 15 seconds under max voltage"
+    },
+    {
+      "name": "Solar Panel Efficiency (%)",
+      "formula": "Max(0, 100 - (Coverage * 1.2))",
+      "target": ">94% post-clearing"
+    },
+    {
+      "name": "Clearing Velocity Vector (units/sec)",
+      "formula": "(Voltage / 2000) * 2.0 * (Phase Multiplier) / Size Class Factor",
+      "target": "Dynamic update matching parameter sweeps"
+    }
+  ],
+  "verification_protocols": [
+    {
+      "id": "VP_01_PHASE_EFFECTIVITY",
+      "description": "Assert that 3-phase AC removes particles 1.8x faster than 2-phase AC.",
+      "method": "Measure simulation clearance duration at 1500V for both phase modes."
+    },
+    {
+      "id": "VP_02_VOLTAGE_ACCELERATION",
+      "description": "Assert that clearing rate correlates positively with voltage amplitude.",
+      "method": "Compare clearing times at 500V, 1000V, and 2000V."
+    },
+    {
+      "id": "VP_03_PARTICLE_INERTIA",
+      "description": "Assert that small particles reach the panel boundary faster than medium and large particles.",
+      "method": "Observe individual size class velocity components under active EDS."
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>DustShield Digital Twin // Mission Operations</title>
+  <!-- Typography Styles -->
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="index.css">
+  <!-- Three.js CDN Dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <span class="material-symbols-outlined header-icon">hub</span>
+      <h1 class="header-title">DUSTSHIELD // LUNAR EDS TWIN</h1>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span class="status-text">SYSTEM OK</span>
+      </div>
+      <div class="link-badge">
+        <span class="material-symbols-outlined link-icon">wifi_tethering</span>
+        <span class="link-text">UHF/LINK: SECURE</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button id="btn-sync" class="btn-sync">
+        <span class="material-symbols-outlined">sync</span>
+        SYNC_DATA
+      </button>
+    </div>
+  </header>
+
+  <!-- App Wrapper -->
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <nav class="side-deck">
+      <div class="side-deck-header">
+        <h2>Control Deck</h2>
+        <p>Station 01-A</p>
+      </div>
+      <div class="side-deck-links">
+        <a href="#" class="nav-link active">
+          <span class="material-symbols-outlined">dashboard</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="#" class="nav-link">
+          <span class="material-symbols-outlined">view_in_ar</span>
+          <span>Simulation</span>
+        </a>
+        <a href="#" class="nav-link">
+          <span class="material-symbols-outlined">analytics</span>
+          <span>Analytics</span>
+        </a>
+        <a href="#" class="nav-link">
+          <span class="material-symbols-outlined">history</span>
+          <span>History</span>
+        </a>
+      </div>
+      <div class="side-deck-footer">
+        <button id="btn-calibrate" class="btn-calibrate">INITIATE CALIBRATION</button>
+      </div>
+    </nav>
+
+    <!-- Main Workspace -->
+    <main class="main-viewport">
+      <div class="bento-grid">
+        <!-- Left Side: WebGL Simulator -->
+        <div class="viewport-card">
+          <div class="simulator-label">
+            <span class="sim-indicator"></span>
+            <span class="sim-text">WebGL 3D SIMULATOR [ACTIVE]</span>
+          </div>
+          <!-- Three.js Canvas Container -->
+          <div id="threejs-container" style="position: relative;">
+            <!-- Land on Surface trigger button -->
+            <button id="btn-land" class="btn-land">
+              <span class="material-symbols-outlined">flight_land</span>
+              <span>INITIATE LANDING</span>
+            </button>
+            <button id="btn-return-orbit" class="btn-return-orbit" style="display: none;">
+              <span class="material-symbols-outlined">rocket_launch</span>
+              <span>RETURN TO ORBIT</span>
+            </button>
+            <div id="descent-hud" class="descent-hud" style="display: none;">
+              <div class="hud-scanning-line"></div>
+              <div class="hud-box">
+                <div class="hud-title">DESCENT SEQUENCE ACTIVE</div>
+                <div class="hud-spinner"></div>
+                <div class="hud-coords" id="hud-coords">LAT: 0.00° // LON: 0.00°</div>
+                <div class="hud-status" id="hud-status">STATUS: INITIATING DE-ORBIT BURN</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="viewport-overlay-bottom-left">
+            <p>COORD_LUNAR: 0.12° N, 30.55° E</p>
+            <p>RENDER_ENGINE: SHADER_CORE_V4</p>
+          </div>
+          <div class="viewport-overlay-bottom-right">
+            <div class="buffer-bar-container">
+              <div class="buffer-bar"></div>
+            </div>
+            <span id="fps-counter">BUFF_STREAM: 60 FPS</span>
+          </div>
+        </div>
+
+        <!-- Right Side: Tuning Controls & Hardware -->
+        <aside class="control-card">
+          <div class="tuning-section">
+            <header class="section-header">
+              <span class="material-symbols-outlined header-accent-icon">tune</span>
+              <h2>PARAMETER TUNING</h2>
+            </header>
+            
+            <div class="tuning-controls">
+              <!-- Voltage -->
+              <div class="control-group">
+                <div class="control-header">
+                  <label for="slider-voltage">Voltage Output</label>
+                  <span id="display-voltage" class="control-readout">1250V</span>
+                </div>
+                <input type="range" id="slider-voltage" min="0" max="2000" step="50" value="1250">
+                <div class="control-ticks">
+                  <span>0V</span>
+                  <span>2000V</span>
+                </div>
+              </div>
+
+              <!-- Frequency -->
+              <div class="control-group">
+                <div class="control-header">
+                  <label for="slider-frequency">Frequency Hz</label>
+                  <span id="display-frequency" class="control-readout">60Hz</span>
+                </div>
+                <input type="range" id="slider-frequency" min="1" max="100" step="1" value="60">
+                <div class="control-ticks">
+                  <span>1Hz</span>
+                  <span>100Hz</span>
+                </div>
+              </div>
+
+              <!-- Phase Selector -->
+              <div class="control-group">
+                <span class="control-label-title">Phase Selection</span>
+                <div class="phase-grid" id="phase-selector">
+                  <button type="button" class="btn-phase" data-phase="2">2-Phase</button>
+                  <button type="button" class="btn-phase active" data-phase="3">3-Phase</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="action-buttons">
+              <button id="btn-activate" class="btn-activate">
+                <span class="material-symbols-outlined">bolt</span>
+                <span id="btn-activate-text">ACTIVATE COULOMB CLEARING</span>
+              </button>
+              <button id="btn-reset" class="btn-reset">RESET DUST LAYOUT</button>
+            </div>
+          </div>
+
+          <!-- Hardware Status Card -->
+          <div class="hardware-section">
+            <div class="hardware-header">
+              <div class="hardware-icon-box">
+                <span class="material-symbols-outlined">memory</span>
+              </div>
+              <div class="hardware-status-info">
+                <h3>HARDWARE INTERFACE</h3>
+                <p id="hardware-status-text" class="status-disconnected">
+                  <span class="material-symbols-outlined">link_off</span>
+                  UART: DISCONNECTED
+                </p>
+              </div>
+            </div>
+            <button id="btn-hardware" class="btn-hardware">
+              <span class="material-symbols-outlined">power_settings_new</span>
+              CONNECT PHYSICAL MCU
+            </button>
+          </div>
+
+          <!-- Console Logger -->
+          <div class="console-section">
+            <div class="console-header">
+              <span class="console-title">System Logs</span>
+              <span id="console-time" class="console-timestamp">T+ 00:00:00:00</span>
+            </div>
+            <div id="console-output" class="console-output">
+              <!-- Logs populated dynamically -->
+            </div>
+          </div>
+        </aside>
+
+        <!-- Bottom Telemetry Cards -->
+        <div class="telemetry-bar">
+          <!-- Dust Coverage -->
+          <div class="telemetry-card">
+            <div class="telemetry-left">
+              <span class="telemetry-label">Dust Coverage</span>
+              <div class="telemetry-readout-box">
+                <span id="value-coverage" class="telemetry-value">100</span>
+                <span class="telemetry-unit">%</span>
+              </div>
+              <div class="progress-bar-track">
+                <div id="progress-coverage" class="progress-bar-fill fill-error" style="width: 100%"></div>
+              </div>
+            </div>
+            <span class="material-symbols-outlined telemetry-status-icon text-error animate-pulse">grain</span>
+          </div>
+
+          <!-- Solar Efficiency -->
+          <div class="telemetry-card">
+            <div class="telemetry-left">
+              <span class="telemetry-label">Solar Efficiency</span>
+              <div class="telemetry-readout-box">
+                <span id="value-efficiency" class="telemetry-value">0</span>
+                <span class="telemetry-unit">%</span>
+              </div>
+              <div class="progress-bar-track">
+                <div id="progress-efficiency" class="progress-bar-fill fill-success" style="width: 0%"></div>
+              </div>
+            </div>
+            <span class="material-symbols-outlined telemetry-status-icon text-warning">light_mode</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <span class="footer-status">MISSION CONTROL OPERATIONAL - SECURE LINK ACTIVE</span>
+    <div class="footer-links">
+      <a href="#">System Logs</a>
+      <a href="#">Hardware Status</a>
+      <a href="#">Protocols</a>
+    </div>
+    <span class="footer-version">v4.0.2-ALPHA</span>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="main.js"></script>
+</body>
+</html>

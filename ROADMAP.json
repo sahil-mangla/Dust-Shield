@@ -1,0 +1,120 @@
+{
+  "roadmap": [
+    {
+      "task_id": "task_1",
+      "component_name": "Setup & Design Integration",
+      "subparts": [
+        {
+          "subpart_id": "subpart_1_1",
+          "description": "Initialize index.html frame layout with control panels and telemetry metrics cards.",
+          "deliverable": "index.html",
+          "verification_step": "Open index.html in the browser and verify elements are present."
+        },
+        {
+          "subpart_id": "subpart_1_2",
+          "description": "Establish CSS variable tokens for dark mode theme matching the design brief.",
+          "deliverable": "index.css",
+          "verification_step": "Confirm styles render with no CSS parsing errors."
+        }
+      ],
+      "verification_gate": "HTML panels render with correct HSL layout colors and fit properly in the viewport."
+    },
+    {
+      "task_id": "task_2",
+      "component_name": "3D Scene & Panel Model",
+      "subparts": [
+        {
+          "subpart_id": "subpart_2_1",
+          "description": "Setup WebGLRenderer, camera, ambient/directional lights, and basic animation loop.",
+          "deliverable": "main.js (initialization block)",
+          "verification_step": "Check browser console for successful WebGL context initialization."
+        },
+        {
+          "subpart_id": "subpart_2_2",
+          "description": "Render a gray lunar terrain plane and a deep-blue solar panel with silver grid lines.",
+          "deliverable": "main.js (mesh construction)",
+          "verification_step": "Verify 3D solar panel and ground render correctly on screen."
+        }
+      ],
+      "verification_gate": "WebGL Canvas renders at 60 FPS with zero console warnings."
+    },
+    {
+      "task_id": "task_3",
+      "component_name": "Dynamic Particle System",
+      "subparts": [
+        {
+          "subpart_id": "subpart_3_1",
+          "description": "Create a procedural circle texture on HTML canvas and initialize 150 dust particles.",
+          "deliverable": "main.js (particle generator)",
+          "verification_step": "Confirm particles are scattered randomly on the solar panel."
+        },
+        {
+          "subpart_id": "subpart_3_2",
+          "description": "Implement Brownian random walk drift when EDS is inactive.",
+          "deliverable": "main.js (drift loop)",
+          "verification_step": "Observe particles drift slowly without leaving panel bounds."
+        }
+      ],
+      "verification_gate": "150+ particle sprites render cleanly on the panel surface."
+    },
+    {
+      "task_id": "task_4",
+      "component_name": "Electrodynamic Kinematics Engine",
+      "subparts": [
+        {
+          "subpart_id": "subpart_4_1",
+          "description": "Implement lateral velocity vectors pointing to nearest edges under traveling wave formulas.",
+          "deliverable": "main.js (clearing update loop)",
+          "verification_step": "Click 'Activate EDS' and verify particles move toward the edges."
+        },
+        {
+          "subpart_id": "subpart_4_2",
+          "description": "Deactivate particles crossing borders and update active particle indices.",
+          "deliverable": "main.js (boundary deactivator)",
+          "verification_step": "Check that particles disappear off the edge of the panel."
+        }
+      ],
+      "verification_gate": "Particles clear off the panel in accordance with voltage and phase modifiers, deactivating at boundaries."
+    },
+    {
+      "task_id": "task_5",
+      "component_name": "Telemetry & Controls Interface",
+      "subparts": [
+        {
+          "subpart_id": "subpart_5_1",
+          "description": "Bind Voltage slider, Frequency slider, and Phase selection toggles to global physics states.",
+          "deliverable": "main.js (UI event listeners)",
+          "verification_step": "Change slider values and verify global variables update instantly."
+        },
+        {
+          "subpart_id": "subpart_5_2",
+          "description": "Map live calculations of Dust Coverage (%) and Solar Panel Efficiency (%) to telemetry cards.",
+          "deliverable": "main.js (metrics update loop)",
+          "verification_step": "Verify metrics reach 100% efficiency and 0% coverage as dust is cleared."
+        }
+      ],
+      "verification_gate": "Interactive parameters bind correctly with live metrics and particle kinematics."
+    },
+    {
+      "task_id": "task_6",
+      "component_name": "Hardware Telemetry Receiver Adapter",
+      "subparts": [
+        {
+          "subpart_id": "subpart_6_1",
+          "description": "Create Web Serial adapter framework to listen for serial data streams.",
+          "deliverable": "main.js (serial receiver interface)",
+          "verification_step": "Confirm receiver adapter contains modular parsing hooks for comma-separated frame tokens."
+        }
+      ],
+      "verification_gate": "Telemetry receiver parsed logic handles frame synchronization, making it ready to integrate with external MCU hardware."
+    }
+  ],
+  "critical_path": [
+    "task_1",
+    "task_2",
+    "task_3",
+    "task_4",
+    "task_5",
+    "task_6"
+  ]
+}

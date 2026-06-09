@@ -1,0 +1,34 @@
+{
+  "tech_ecosystem": {
+    "core": {
+      "language": "JavaScript (ES6 Modules)",
+      "structure": "HTML5 semantic markup",
+      "styling": "Vanilla CSS Custom Properties & CSS Grid/Flexbox"
+    },
+    "3d_graphics": {
+      "library": "Three.js (r128 via UNPKG CDN)",
+      "performance": "WebGL-accelerated requestAnimationFrame loop",
+      "assets": "Procedurally generated dust textures (HTML5 Canvas 2D context)"
+    },
+    "performance_guards": [
+      "Zero-dependency loading for instantaneous Largest Contentful Paint (LCP)",
+      "Decoupled particle physics loops avoiding rendering waterfalls",
+      "Static hosting compatibility (GitHub Pages, Vercel) for rapid deployment"
+    ]
+  },
+  "hardware_integration_protocol": {
+    "interface": "Web Serial API (native browser communication)",
+    "target_mcu": "ESP32-C3 or similar microcontroller via USB-UART bridge",
+    "telemetry_format": {
+      "type": "Comma-Separated Values (ASCII)",
+      "example_frame": "voltage,frequency,phase,active\\n -> '1500,45,3,1\\n'",
+      "fields": {
+        "voltage": "0 - 2000 (integer representing Volts)",
+        "frequency": "1 - 100 (integer representing Hz)",
+        "phase": "2 or 3 (phase configuration)",
+        "active": "0 or 1 (EDS state)"
+      }
+    },
+    "software_receiver_flow": "1. User clicks 'Connect Hardware' -> 2. Browser requests serial port access -> 3. Continuous reader parses serial stream -> 4. Stream parser updates global parameters in main.js -> 5. 3D simulation adapts in real-time"
+  }
+}

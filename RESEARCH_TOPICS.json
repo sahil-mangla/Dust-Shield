@@ -1,0 +1,111 @@
+{
+  "topics": [
+    {
+      "topic_id": "topic_1",
+      "title": "DustShield: Electrodynamic Dust Shield Digital Twin",
+      "problem_statement": "Physical testing of lunar Electrodynamic Dust Shields (EDS) is costly and slow; a digital twin is required to visualize particle kinetics and telemetry in real-time.",
+      "research_gap": {
+        "source_papers": ["calle2008dust", "buhler2024current"],
+        "why_it_matters": "Enables engineers to sweep parameters (voltage, phase, frequency) and view clearing dynamics before hardware fabrication.",
+        "current_limitation": "No open-source digital twins exist that bridge control interfaces with physical serial telemetry."
+      },
+      "your_approach": {
+        "novel_angle": "Interactive 3D particle simulation driven by real-time sliders that mirror actual MCU control registers, including Web Serial telemetry expansion.",
+        "key_insight": "Translating multi-phase AC parameters directly into a visual traveling wave velocity field.",
+        "compared_to_papers": "Replaces static graphs with dynamic, interactive 3D particle clearing loops and efficiency degradation curves."
+      },
+      "mvp_features": [
+        {
+          "feature_id": "f1",
+          "name": "Three.js Lunar Scene",
+          "subparts": ["Lunar terrain mesh", "Detailed solar panel model", "Orbiting Earth skybox"],
+          "verification_method": "Visually verify rendering at 60 FPS in browser console."
+        },
+        {
+          "feature_id": "f2",
+          "name": "Empirical Particle Physics Engine",
+          "subparts": ["Random Brownian drift", "Voltage and phase directional velocity transport", "Size-based speed scaling"],
+          "verification_method": "Verify particles deactivate when crossing panel borders."
+        },
+        {
+          "feature_id": "f3",
+          "name": "Real-time Telemetry Dashboard",
+          "subparts": ["Dust coverage metrics", "Solar efficiency curves", "Control interface forms"],
+          "verification_method": "Verify slider adjustments instantly trigger updates in particle physics constants."
+        }
+      ],
+      "success_metrics": {
+        "primary": "Clearing speed and efficiency mapping accuracy vs. NASA experimental curves",
+        "baseline_from_papers": "Physical systems show >90% clearing in 10-30 seconds depending on voltage.",
+        "your_target": "95%+ visual cleaning convergence, zero frame lag during simulation",
+        "improvement": "100% reduction in optimization cycle time via virtual sweeping"
+      },
+      "dataset": {
+        "name": "NASA LHS-1 Lunar Simulant Particle Distribution",
+        "source": "NASA/TM-2008-215032 size distribution reports",
+        "train_test_split": "60% small (<45um), 20% medium (45-100um), 20% large (>100um) ratio in particle system"
+      },
+      "tech_stack": {
+        "model_type": "Kinematic Particle Propagator",
+        "framework": "Vanilla JS, Three.js (CDN), pure CSS",
+        "training_hardware": "Client-side GPU WebGL",
+        "deployment": "Vercel / GitHub Pages"
+      },
+      "risks": [
+        "Numerical instability in particle collision -> Mitigated by treating particles as non-colliding points",
+        "Browser performance degradation with high particle counts -> Mitigated by limiting system size to 150-200 particles"
+      ],
+      "feasibility_score": 9,
+      "novelty_score": 8,
+      "complexity": "medium"
+    },
+    {
+      "topic_id": "topic_2",
+      "title": "Solar Panel Power-Aware Dust Mitigation Controller",
+      "problem_statement": "EDS systems run on a static timer, causing unnecessary power drain on small satellites during low-sun orbits.",
+      "research_gap": {
+        "source_papers": ["mazumder2007development", "buhler2024current"],
+        "why_it_matters": "Active dust clearing should only activate when solar irradiance is sufficient and dust accumulation drops output below a threshold.",
+        "current_limitation": "Power management systems do not close the loop with active electrostatic dust cleaning schedules."
+      },
+      "your_approach": {
+        "novel_angle": "An adaptive control loop that evaluates MPPT curves and schedules high-voltage pulses only when net energy yield is positive.",
+        "key_insight": "Modeling the cost-benefit trade-off of the power required for flyback charging vs. recovered solar cell efficiency.",
+        "compared_to_papers": "Extends existing static EDS timers to dynamic solar efficiency triggers."
+      },
+      "mvp_features": [
+        {
+          "feature_id": "f1",
+          "name": "MPPT Irradiance Modulator",
+          "subparts": ["Solar panel sun angle math", "Dynamic battery charge log"],
+          "verification_method": "Assert positive net energy yield across simulated orbit."
+        }
+      ],
+      "success_metrics": {
+        "primary": "Net daily energy yield optimization",
+        "baseline_from_papers": "Static EDS runs reduce net energy by 15% during eclipse.",
+        "your_target": "Maintain >98% battery state of charge across orbit",
+        "improvement": "12% increase in net operational power"
+      },
+      "dataset": {
+        "name": "LEO Orbit Solar Flux Log",
+        "source": "NASA Solar Flux Reference",
+        "train_test_split": "15 orbit simulation log"
+      },
+      "tech_stack": {
+        "model_type": "State Machine Scheduler",
+        "framework": "Next.js, Chart.js",
+        "training_hardware": "CPU",
+        "deployment": "Vercel"
+      },
+      "risks": [
+        "Incorrect battery state estimates -> Mitigated by conservative power thresholds"
+      ],
+      "feasibility_score": 7,
+      "novelty_score": 8,
+      "complexity": "medium"
+    }
+  ],
+  "why_3_topics": "We chose these topics because they bridge the physical constraints of lunar space operations with modern software simulations, satisfying the FAR AWAY hardware-software synergy requirements.",
+  "recommendation": "Topic 1 (DustShield Digital Twin) is highly recommended due to its direct mapping of high-voltage parameters, strong Three.js interactive capability, and seamless hardware telemetry integration readiness."
+}

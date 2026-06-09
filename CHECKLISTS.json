@@ -1,0 +1,58 @@
+{
+  "must_haves": [
+    {
+      "requirement": "Three.js 3D WebGL Canvas Scene",
+      "why": "Fulfills the core 3D simulation foundation deliverable.",
+      "verification": "Canvas loads and renders solar panel/lunar surface without errors."
+    },
+    {
+      "requirement": "Dynamic Particle System (150+ particles)",
+      "why": "Provides visual representation of lunar dust particles.",
+      "verification": "Initial particle count is generated on load and tracked in memory."
+    },
+    {
+      "requirement": "Empirical Kinematics clearing model",
+      "why": "Allows dust removal rate to vary depending on voltage, frequency, and phase parameters.",
+      "verification": "EDS activation moves particles toward edges and deactivates them."
+    },
+    {
+      "requirement": "Telemetry Metrics Dashboard",
+      "why": "Visualizes Dust Coverage (%) and Solar Efficiency (%) in real-time.",
+      "verification": "Metrics update continuously during dust clearance."
+    },
+    {
+      "requirement": "Premium Visual Identity without AI Slop",
+      "why": "Avoids system font stacks (Arial/Inter default styles), over-rounded corners (>16px), or text gradients.",
+      "verification": "Checks against the DESIGN_SYSTEM.md guidelines."
+    }
+  ],
+  "should_haves": [
+    {
+      "requirement": "Interactive Control Panel Sliders",
+      "why": "Gives users control over Voltage and Frequency values.",
+      "verification": "Sliders bind directly to variables and show current values."
+    },
+    {
+      "requirement": "Phase Switch (2-Phase vs 3-Phase)",
+      "why": "Demonstrates the efficiency gain of traveling waves.",
+      "verification": "3-phase setting yields 1.5x clearing speed multiplier."
+    },
+    {
+      "requirement": "Visual Vibration Jitter",
+      "why": "Provides visual feedback of frequency adjustments.",
+      "verification": "Particle jitter amplitude increases with the frequency slider value."
+    }
+  ],
+  "nice_to_haves": [
+    {
+      "requirement": "Web Serial Receiver Framework",
+      "why": "Allows future telemetry inputs from teammate's physical MCU hardware.",
+      "verification": "Modular parsing code is prepared and stubbed in main.js."
+    },
+    {
+      "requirement": "Prefers-Reduced-Motion Compatibility",
+      "why": "Supports accessibility standards.",
+      "verification": "Transitions are disabled under prefers-reduced-motion media queries."
+    }
+  ]
+}

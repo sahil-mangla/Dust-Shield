@@ -1,0 +1,1358 @@
+version: "3.2"
+name: "Research-Informed Hackathon Workflow (v3.2)"
+description: |
+  COMPLETE research-backed hackathon project planning and delivery system.
+  
+  v3.2 TASK-WISE ENHANCEMENTS:
+  - Shifted planning paradigm from time-bound (48h/72h roadmaps) to task-wise and element-wise.
+  - Every feature/element is broken down into subparts that must be achieved and verified first.
+  - Custom verification gates for each implementation component to ensure correctness before proceeding.
+  - Retained all design quality checks, skills registry, and automated audits.
+
+# ============================================================================
+# RESEARCH INTEGRATION PARAMETERS
+# ============================================================================
+research_config:
+  enabled: true
+  sources:
+    - name: "arXiv"
+      url: "https://arxiv.org/search"
+      categories: ["cs.AI", "cs.CV", "cs.NE", "cs.LG", "cs.RO", "q-bio"]
+      api: "https://api.semanticscholar.org/graph/v1"
+    
+    - name: "Papers with Code"
+      url: "https://paperswithcode.com"
+      api: "https://paperswithcode.com/api"
+      focus: "implementations + benchmarks"
+    
+    - name: "Google Scholar"
+      url: "https://scholar.google.com"
+      scrape: true
+      focus: "citation metrics + influence"
+  
+  search_params:
+    time_window: "last_2_years"  # Latest papers only
+    min_citations: 5
+    sort_by: "relevance_and_recency"
+    limit_papers: 10
+    return_top: 3
+  
+  gap_analysis:
+    look_for:
+      - "Limitations mentioned in papers"
+      - "Future work sections"
+      - "Open challenges in datasets"
+      - "Performance gaps vs. SOTA"
+      - "Real-world deployment barriers"
+    
+    synthesis: "Identify 3-4 research gaps that can be solved and verified task-wise."
+
+# ============================================================================
+# CUSTOMIZABLE PARAMETERS (EDIT THESE)
+# ============================================================================
+parameters:
+  hackathon:
+    name: "{HACKATHON_NAME}"
+    type: "{HACKATHON_TYPE}"  # ai|web|hardware|blockchain|mobile|data|greenfield|other
+    judging_criteria: "{JUDGING_CRITERIA}"
+  
+  winning_principles:
+    principles:
+      - id: "p1"
+        name: "Research-Backed Problem"
+        description: "Problem grounded in literature gaps. Solves ONE research gap broken down into verifiable subparts."
+        weight: 25
+      
+      - id: "p2"
+        name: "Technical Maturity"
+        description: "Architecture & tech choices show research awareness. Built and verified task-by-task."
+        weight: 20
+      
+      - id: "p3"
+        name: "Novel Approach"
+        description: "Different from what papers show. Innovation is clear vs. existing work."
+        weight: 20
+      
+      - id: "p4"
+        name: "Code Quality & Reproducibility"
+        description: "Production-ready, modular, and verifiable code. Every subpart has verification steps."
+        weight: 15
+      
+      - id: "p5"
+        name: "Evaluation & Metrics"
+        description: "Clear metrics vs. baselines. Proves the gap is actually solved by running verification checks."
+        weight: 12
+      
+      - id: "p6"
+        name: "Documentation & Transparency"
+        description: "Methods clearly explained. Code + results shareable with research community with verification walkthroughs."
+        weight: 8
+  
+  tech_ecosystem:
+    primary_options:
+      - name: "Cloud Platform"
+        choices: ["AWS", "Google Cloud", "Azure", "Firebase", "Supabase"]
+        recommended: "AWS or Firebase"
+      
+      - name: "Frontend Framework"
+        choices: ["React", "Next.js", "Svelte", "Vue"]
+        recommended: "Next.js (App Router)"
+
+      - name: "ML Framework"
+        choices: ["PyTorch", "TensorFlow", "JAX", "scikit-learn"]
+        recommended: "PyTorch (hackathons favor it)"
+      
+      - name: "Dataset Source"
+        choices: ["Hugging Face", "Kaggle", "Papers with Code", "TensorFlow Datasets"]
+        recommended: "Hugging Face (easy integration)"
+      
+      - name: "Evaluation Tools"
+        choices: ["Weights & Biases", "MLflow", "Tensorboard", "Comet"]
+        recommended: "Weights & Biases (free for hackathons)"
+      
+      - name: "Version Control"
+        choices: ["GitHub", "GitLab"]
+        recommended: "GitHub (larger research community)"
+  
+  evaluation_weights:
+    problem_clarity: 15
+    technical_execution: 25
+    research_soundness: 20
+    novelty: 15
+    code_quality: 15
+    evaluation_metrics: 10
+
+# ============================================================================
+# AGENT SKILLS REGISTRY WITH SOURCE URLS
+# ============================================================================
+agent_skills:
+  - skill: "find-skills"
+    source_url: "https://github.com/vercel-labs/skills"
+    when: ["intake", "tech_planning"]
+    tool: "npx skills find"
+    purpose: |
+      Search for and discover specialized agent skills for hackathon-specific integrations.
+    install_command: "npx skills add https://github.com/vercel-labs/skills -y --skill find-skills"
+    usage: |
+      npx skills find "<query>"
+
+  - skill: "frontend-design"
+    source_url: "https://github.com/anthropics/skills"
+    when: ["design_system", "component_spec"]
+    tool: "frontend-design"
+    purpose: |
+      Create distinctive, production-grade frontend interfaces that avoid generic "AI slop"
+      (Inter font stack, purple gradients, cookie-cutter layouts). Enforce:
+      - Distinctive typography (unexpected display font paired with refined body font).
+      - Saturated/committed color strategies using HSL.
+      - Asymmetric layout, overlap, grid-breaking elements, diagonal flow.
+      - Spatial depth (noise textures, layered transparencies, custom cursors).
+      - Reveal animations enhancing visible defaults.
+    install_command: "npx skills add https://github.com/anthropics/skills -y --skill frontend-design"
+    usage: |
+      Apply design thinking (Purpose, Tone, Constraints, Differentiation) before writing any code.
+
+  - skill: "vercel-react-best-practices"
+    source_url: "https://github.com/vercel-labs/agent-skills"
+    when: ["tech_planning", "roadmap", "performance_audit"]
+    tool: "vercel-react-best-practices"
+    purpose: |
+      React/Next.js performance optimization. Enforces:
+      - Eliminating Waterfalls: Promise.all() for independent fetches (`async-parallel`), lazy conditional await.
+      - Bundle Optimization: Avoid barrel imports (`bundle-barrel-imports`), next/dynamic (`bundle-dynamic-imports`), defer third-party scripts.
+      - Server Performance: React.cache() (`server-cache-react`), after() for non-blocking.
+      - Re-render Optimization: Memoize expensive components (`rerender-memo`), derive state during render.
+      - Rendering: content-visibility for long lists (`rendering-content-visibility`), hoisting JSX outside render.
+    install_command: "npx skills add https://github.com/vercel-labs/agent-skills -y --skill vercel-react-best-practices"
+    usage: |
+      Review React code against performance categories (Waterfalls, Bundle Size, Server, Re-renders, JS Performance).
+
+  - skill: "web-design-guidelines"
+    source_url: "https://github.com/vercel-labs/agent-skills"
+    when: ["accessibility_audit", "quality_checklist"]
+    tool: "web-design-guidelines"
+    purpose: |
+      Review UI code for compliance with Web Interface Guidelines.
+    install_command: "npx skills add https://github.com/vercel-labs/agent-skills -y --skill web-design-guidelines"
+    usage: |
+      Fetch fresh guidelines from https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md and audit project files.
+
+  - skill: "ui-ux-pro-max"
+    source_url: "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+    when: ["design_system", "component_spec"]
+    tool: "python3 ~/.agents/skills/ui-ux-pro-max/scripts/search.py"
+    purpose: |
+      UI/UX design intelligence. Provides:
+      - 50+ styles (glassmorphism, claymorphism, brutalism, bento grid, neumorphism, etc.)
+      - 161 color palettes & 57 font pairings
+      - 99 UX guidelines & 25 chart types
+      - Constraints: Contrast 4.5:1, touch targets >= 44x44pt, 8px spacing, safe area clearance.
+      - Interactive rules: No emojis as structural icons (use SVG), active states, loading feedback.
+    install_command: "npx skills add https://github.com/nextlevelbuilder/ui-ux-pro-max-skill -y --skill ui-ux-pro-max"
+    usage: |
+      python3 ~/.agents/skills/ui-ux-pro-max/scripts/search.py "<product_type> <keywords>" --design-system --persist -p "<project_name>"
+
+  - skill: "impeccable"
+    source_url: "https://github.com/pbakaus/impeccable"
+    when: ["design_system", "roadmap", "accessibility_audit", "performance_audit", "final_qa"]
+    tool: "impeccable"
+    purpose: |
+      Comprehensive interface design, critiquing, and polishing. Enforces:
+      - Contrast checks (body text >= 4.5:1, large >= 3:1).
+      - Typography limits (body line length 65-75ch, letter-spacing >= -0.04em, heading max <= 6rem).
+      - Natural animation physics (prefers-reduced-motion is mandatory, exit shorter than enter).
+      - Copy standards (no em dashes, no marketing buzzwords: streamline/supercharge/unleash).
+      - Absolute Bans:
+        - No side-stripe borders (>1px border as colored accent on cards/alerts).
+        - No gradient text (background-clip: text).
+        - No decorative glassmorphism.
+        - No hero-metric templates (big number + small label).
+        - No tiny uppercase tracked eyebrows on every section.
+        - No sequential section marker scaffolding (01 / 02 / 03) unless ordering sequence.
+        - No card/modal border-radius > 16px.
+        - No ghost-card border + shadow combo (pick one, not both).
+        - No sketchy/hand-drawn SVG doodles.
+    install_command: "npx skills add https://github.com/pbakaus/impeccable -y --skill impeccable"
+    usage: |
+      1. Init: node ~/.agents/skills/impeccable/scripts/context.mjs
+      2. Critique target UI: impeccable critique <target>
+      3. Apply polish: impeccable polish <target>
+      4. Auditing: impeccable audit <target>
+      5. Refactoring tasks: impeccable craft <feature> / impeccable shape <feature>
+
+  - skill: "StitchMCP"
+    when: ["design_system", "component_spec"]
+    tool: "StitchMCP"
+    purpose: |
+      Generate high-fidelity UI screens, design systems, and visual layouts.
+    usage: |
+      create_design_system_from_design_md → generate_screen_from_text → generate_variants → apply_design_system
+
+  - skill: "chrome-devtools"
+    when: ["demo_qa", "performance_audit"]
+    tool: "chrome-devtools (MCP)"
+    purpose: |
+      Validate demo builds. Verify LCP < 2.5s, INP < 200ms, 0 console errors, 0 failing network requests.
+
+  - skill: "a11y-debugging"
+    when: ["accessibility_audit"]
+    tool: "chrome-devtools (MCP) + a11y audit"
+    purpose: |
+      Perform structured accessibility audits. Verify alt text, focus order, ARIA attributes, contrast.
+
+# ============================================================================
+# SYSTEM CONTEXT
+# ============================================================================
+system_context: |
+  You are an expert research-informed hackathon architect helping teams win by executing with discipline.
+  
+  Your role: Analyze the problem statement, discover latest literature gaps, formulate highly competitive project topics,
+  and generate a task-wise execution roadmap. You enforce that each task and element is broken down into subparts,
+  achieved, and verified before moving onto successive stages. You enforce design, coding, and quality gates.
+
+  Core principles:
+  1. ONE problem, solved deeply. Ground your solution in research paper limitations.
+  2. Task-wise validation: Break elements into granular subparts and verify each before proceeding.
+  3. Technical choices optimized for speed, reliability, and clean execution.
+     - Enforce React/Next.js best practices (no waterfalls, proper parallel fetching, clean bundling).
+  4. Visual distinction and premium design:
+     - Apply "frontend-design" to establish a bold, memorable theme.
+     - Apply "ui-ux-pro-max" to extract standard color systems, spacing, and layouts.
+     - Respect "impeccable" rules: OKLCH/HSL, contrast, copy clarity, and strict design bans.
+     - Generate visual specs using StitchMCP before writing code.
+  5. Accessibility and quality built in:
+     - Run "web-design-guidelines" and "a11y-debugging" audits on the demo.
+  6. Flawless final demo checked via "chrome-devtools" and scored against the "AI slop" template test.
+
+# ============================================================================
+# WORKFLOW RULES
+# ============================================================================
+workflow_rules:
+  - "One primary user persona, one primary user journey"
+  - "Flag scope creep IMMEDIATELY and block forward progress"
+  - "Every project topic must solve a clear limitation/gap cited in recent literature"
+  - "Task-Wise Progression: Every element must be broken down, achieved, and verified before moving to the next stage"
+  - "MANDATORY: Run Stage 0 to ensure all required design, performance, and auditing skills are downloaded/installed"
+  - "MANDATORY: Run ui-ux-pro-max and frontend-design skills before writing component specs"
+  - "MANDATORY: Verify all code against vercel-react-best-practices to eliminate async waterfalls"
+  - "MANDATORY: Check designs against impeccable absolute bans (no gradient text, no eyebrows, no over-rounding, etc.)"
+  - "MANDATORY: Run web-design-guidelines and a11y-debugging audits on the demo before final brief"
+  - "Design principles score < 7/10 or a11y audit failures block final brief generation"
+
+# ============================================================================
+# STAGES
+# ============================================================================
+stages:
+
+  # ========================================================================
+  # STAGE 0: PRE-FLIGHT & SKILLS INSTALLATION
+  # ========================================================================
+  - stage_id: "skills_installation"
+    name: "Pre-Flight Skills Installation"
+    description: "Verify and automatically install all required agent skills in the project folder to ensure availability."
+    tasks:
+      - task_id: "auto_install_skills"
+        name: "Verify and Download Required Skills"
+        type: "prompt"
+        model: "{MODEL}"
+        prompt_template: |
+          To ensure all design, optimization, and auditing tasks succeed, we must verify the presence of our core skills:
+          - find-skills (Source: https://github.com/vercel-labs/skills)
+          - frontend-design (Source: https://github.com/anthropics/skills)
+          - vercel-react-best-practices (Source: https://github.com/vercel-labs/agent-skills)
+          - web-design-guidelines (Source: https://github.com/vercel-labs/agent-skills)
+          - ui-ux-pro-max (Source: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
+          - impeccable (Source: https://github.com/pbakaus/impeccable)
+
+          Action Plan:
+          1. List currently installed skills.
+          2. For any skill that is missing from local/global agents, run the respective installation command:
+             - find-skills: npx skills add https://github.com/vercel-labs/skills -y --skill find-skills
+             - frontend-design: npx skills add https://github.com/anthropics/skills -y --skill frontend-design
+             - vercel-react-best-practices: npx skills add https://github.com/vercel-labs/agent-skills -y --skill vercel-react-best-practices
+             - web-design-guidelines: npx skills add https://github.com/vercel-labs/agent-skills -y --skill web-design-guidelines
+             - ui-ux-pro-max: npx skills add https://github.com/nextlevelbuilder/ui-ux-pro-max-skill -y --skill ui-ux-pro-max
+             - impeccable: npx skills add https://github.com/pbakaus/impeccable -y --skill impeccable
+
+          Confirm if all required skills are ready and operational.
+        output_variable: "skills_installation_status"
+
+  # ========================================================================
+  # STAGE 1: PROBLEM INTAKE & CLARIFICATION
+  # ========================================================================
+  - stage_id: "intake"
+    name: "Problem Statement Intake"
+    description: "Parse, bound, and decompose the problem into modular elements. Discover niche agent skills if needed."
+    depends_on: ["skills_installation"]
+    agent_skills_required:
+      - skill: "find-skills"
+        action: "Search for specific domain skills if the hackathon targets niche fields (web3, biotech, greenfield startup, etc.)."
+    tasks:
+      - task_id: "parse_problem"
+        name: "Parse Problem Statement"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - problem_statement
+          - context
+          - constraints
+          - hackathon_type
+        prompt_template: |
+          Hackathon Type: {hackathon_type}
+          Problem Statement: {problem_statement}
+          Additional Context: {context}
+          Constraints: {constraints}
+
+          Extract and structure:
+          1. Core Problem (1 sentence)
+          2. Primary User Persona & Primary Journey
+          3. Scope Risk: Is it too broad?
+          4. Recommended Focus: The ONE core user flow.
+          5. Niche Requirements: Do we need specific domain skills? (e.g. web3, hardware, clinical-trials)
+          6. Design Opportunity: What's the visual/UX 'wow' moment?
+          7. Decomposed Subparts: Breakdown of the core solution into distinct, verifiable elements.
+
+          Return valid JSON:
+          {{
+            "core_problem": "...",
+            "primary_user": "persona description",
+            "impact": "...",
+            "scope_risk": "too_broad|focused|unclear",
+            "scope_feedback": "...",
+            "recommended_focus": "...",
+            "niche_skills_needed": ["list of skills or none"],
+            "design_opportunity": "visual opportunity description",
+            "decomposed_subparts": [
+              {{
+                "subpart_id": "sp1",
+                "name": "Subpart Name",
+                "description": "What needs to be achieved?",
+                "verification": "How do we verify it?"
+              }}
+            ]
+          }}
+        output_variable: "parsed_problem"
+
+      - task_id: "scope_check"
+        name: "Scope Risk Assessment"
+        type: "conditional"
+        condition: "parsed_problem.scope_risk != 'focused'"
+        on_true:
+          - action: "output_warning"
+            message: "🚨 SCOPE CREEP ALERT: The problem is too broad. You risk delivering half-baked features instead of one polished, winning product. Recommended focus: {parsed_problem.recommended_focus}"
+        on_false:
+          - action: "proceed_to_stage"
+            stage: "research_discovery"
+
+  # ========================================================================
+  # STAGE 2: RESEARCH PAPER DISCOVERY & GAP ANALYSIS
+  # ========================================================================
+  - stage_id: "research_discovery"
+    name: "Research Paper Discovery & Gap Analysis"
+    description: "Find latest papers in domain, identify research gaps, and organize them task-wise"
+    depends_on: ["intake"]
+    tasks:
+      - task_id: "extract_keywords"
+        name: "Extract & Expand Keywords"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - problem_statement
+          - hackathon_type
+          - domain_area
+        prompt_template: |
+          Problem Statement: {problem_statement}
+          Hackathon Type: {hackathon_type}
+          Domain: {domain_area}
+          
+          Extract and expand keywords for research paper search:
+          
+          1. PRIMARY keywords (directly from problem)
+          2. SECONDARY keywords (related concepts)
+          3. TERTIARY keywords (adjacent fields that might have solutions)
+          4. AUTHOR names (known researchers in this space)
+          5. DATASET names (standard benchmarks used in research)
+          
+          Return JSON:
+          {{
+            "primary_keywords": ["keyword1", "keyword2"],
+            "secondary_keywords": ["keyword1", "keyword2"],
+            "tertiary_keywords": ["keyword1", "keyword2"],
+            "researcher_names": ["Name1", "Name2"],
+            "dataset_names": ["Dataset1", "Dataset2"],
+            "search_queries": [
+              "Query for arXiv that would find most relevant papers",
+              "Another search query",
+              "A third variation"
+            ],
+            "domain_subcategories": ["subcat1", "subcat2"]
+          }}
+        output_variable: "research_keywords"
+      
+      - task_id: "search_papers"
+        name: "Search Research Paper Databases"
+        type: "external_api"
+        api_calls:
+          - source: "arXiv"
+            query_template: "{search_queries[0]}"
+            params: {
+              "sortBy": "relevance",
+              "max_results": 10,
+              "start": 0
+            }
+          
+          - source: "Semantic Scholar"
+            query_template: "{search_queries[1]}"
+            params: {
+              "limit": 10,
+              "fields": "title,abstract,year,authors,citationCount"
+            }
+          
+          - source: "Papers with Code"
+            query_template: "{search_queries[2]}"
+            params: {
+              "limit": 5,
+              "sort": "trending"
+            }
+        post_processing: |
+          1. Deduplicate papers across sources
+          2. Rank by: recency (last 2 years), citation count, implementation availability
+          3. Return top 3 papers per domain subcategory
+          4. Extract: title, abstract, authors, year, DOI, code availability
+        output_variable: "research_papers"
+
+      - task_id: "analyze_gaps"
+        name: "Analyze Research Gaps"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - research_papers
+          - problem_statement
+        prompt_template: |
+          Research Papers Found: {research_papers}
+          Problem Statement: {problem_statement}
+          
+          Analyze papers for research gaps that can be solved and verified task-wise:
+          
+          For each paper, extract:
+          1. Main contribution (what did they solve?)
+          2. Stated limitations (what they admit they can't do)
+          3. Future work (what they suggest next)
+          4. Performance gaps (where do they fall short vs. SOTA?)
+          5. Real-world blockers (deployment challenges, dataset scarcity, etc.)
+          
+          Then identify 5-6 feasible gaps that:
+          - Are mentioned in 2+ papers as limitations
+          - Can be broken down into modular, verifiable development tasks
+          - Would make a hackathon project stand out
+          - Have clear success metrics
+          
+          Return JSON:
+          {{
+            "paper_summaries": [
+              {{
+                "title": "Paper Title",
+                "year": 2024,
+                "main_contribution": "...",
+                "stated_limitations": ["limitation1", "limitation2"],
+                "future_work": ["suggested1", "suggested2"],
+                "performance_gaps": {{"metric": "gap"}},
+                "deployment_barriers": ["barrier1"]
+              }}
+            ],
+            "identified_gaps": [
+              {{
+                "gap_id": "gap_1",
+                "description": "What gap is this?",
+                "mentioned_by_papers": ["Paper Title 1", "Paper Title 2"],
+                "feasibility": "high|medium|low",
+                "complexity_rank": "high|medium|low",
+                "verification_complexity": "simple|complex",
+                "hackathon_suitability": "excellent|good|marginal",
+                "success_metrics": ["metric1", "metric2"]
+              }}
+            ],
+            "top_6_gaps_ranked": ["gap_1", "gap_2", ...]
+          }}
+        output_variable: "gap_analysis"
+
+      - task_id: "generate_bibtex"
+        name: "Generate BibTeX Citations"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - research_papers
+        prompt_template: |
+          Research Papers: {research_papers}
+          
+          Generate a valid BibTeX citation block (.bib format) for all source papers.
+          Ensure proper citation keys, titles, authors, and year.
+          
+          Return raw BibTeX text.
+        output_variable: "research_papers_bibtex"
+      
+      - task_id: "generate_topics"
+        name: "Generate 3-4 Research-Backed Topics"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - gap_analysis
+          - problem_statement
+          - hackathon_type
+        prompt_template: |
+          Gap Analysis: {gap_analysis}
+          Problem: {problem_statement}
+          Type: {hackathon_type}
+          
+          Create 3-4 project topics, each solving ONE specific research gap.
+          Decompose each topic's scope into verifiable subparts.
+          
+          For each topic:
+          1. Clear problem statement (1 sentence, grounded in research gap)
+          2. Research justification (why papers identified this as important)
+          3. Novelty angle (how is your approach different from existing papers?)
+          4. MVP scope: Decomposed into a list of verifiable features/subparts.
+          5. Success metrics (how will judges measure success?)
+          6. Dataset/benchmark (what will you evaluate against?)
+          7. Tech stack (what tools for this specific problem?)
+          8. Risk assessment (what could go wrong?)
+          
+          CRITICAL CONSTRAINT: Each topic solves ONE problem. No mixing.
+          
+          Return JSON:
+          {{
+            "topics": [
+              {{
+                "topic_id": "topic_1",
+                "title": "Catchy, research-backed title",
+                "problem_statement": "One sentence describing the gap from papers",
+                "research_gap": {{
+                  "source_papers": ["Paper1", "Paper2"],
+                  "why_it_matters": "Why researchers identified this",
+                  "current_limitation": "What existing work can't do"
+                }},
+                "your_approach": {{
+                  "novel_angle": "How you'll be different",
+                  "key_insight": "What makes this work better?",
+                  "compared_to_papers": "How you differ from [Paper1], [Paper2]"
+                }},
+                "mvp_features": [
+                  {{
+                    "feature_id": "f1",
+                    "name": "Feature Name",
+                    "subparts": ["subpart description 1", "subpart description 2"],
+                    "verification_method": "Detailed verification step or automated test for this feature"
+                  }}
+                ],
+                "success_metrics": {{
+                  "primary": "Main metric to optimize",
+                  "baseline_from_papers": "What did papers achieve?",
+                  "your_target": "What will you achieve?",
+                  "improvement": "% improvement vs. baseline"
+                }},
+                "dataset": {{
+                  "name": "Dataset name",
+                  "source": "Where to get it",
+                  "train_test_split": "How you'll use it"
+                }},
+                "tech_stack": {{
+                  "model_type": "What type of model?",
+                  "framework": "PyTorch/TF/etc",
+                  "training_hardware": "GPU/CPU requirements",
+                  "deployment": "How you'll demo it"
+                }},
+                "risks": [
+                  "Risk 1 + mitigation",
+                  "Risk 2 + mitigation"
+                ],
+                "feasibility_score": 8,
+                "novelty_score": 8,
+                "complexity": "low|medium|high"
+              }}
+            ],
+            "why_3_topics": "Here's why we picked these 3 specific gaps over the others",
+            "recommendation": "Topic X has the best feasibility, subpart clarity, and novelty combo"
+          }}
+        output_variable: "research_topics"
+
+  # ========================================================================
+  # STAGE 3: TOPIC SELECTION & PROJECT CHARTER
+  # ========================================================================
+  - stage_id: "topic_selection"
+    name: "Select Research Topic & Create Project Charter"
+    description: "Pick one topic and decompose its charter into verifiable deliverables"
+    depends_on: ["research_discovery"]
+    tasks:
+      - task_id: "select_topic"
+        name: "Select Best Topic"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - research_topics
+          - team_expertise
+        prompt_template: |
+          Research Topics: {research_topics}
+          Team Expertise: {team_expertise}
+          
+          Recommend which topic the team should pursue based on:
+          1. Task-wise feasibility and clarity of verification steps
+          2. Team expertise alignment
+          3. Novelty potential
+          4. Research impact
+          
+          Return recommendation with rationale.
+        output_variable: "selected_topic"
+
+      - task_id: "evaluate_principles"
+        name: "Evaluate Selected Topic Against Winning Principles"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - selected_topic
+          - research_papers
+          - winning_principles
+          - hackathon_type
+        prompt_template: |
+          Topic: {selected_topic}
+          Source Papers: {research_papers}
+          Winning Principles: {winning_principles}
+          Hackathon Type: {hackathon_type}
+
+          Score this plan against the hackathon winning principles.
+          Be critical. Score 1-10.
+          Verify if each element of the proposed architecture can be isolated and verified.
+          If the proposed concept uses generic AI templates, system default fonts (Arial/Inter), or lacks clear UI distinction, score "Distinctive User-Centric Design" < 7.
+
+          Return JSON:
+          {{
+            "principles_scores": [
+              {{
+                "principle": "principle name",
+                "score": 8,
+                "strengths": ["..."],
+                "gaps": ["..."],
+                "recommendation": "..."
+              }}
+            ],
+            "overall_confidence": 75,
+            "design_score": 7,
+            "design_blocked": false
+          }}
+        output_variable: "principles_analysis"
+
+      - task_id: "design_gate"
+        name: "Design Score Gate"
+        type: "conditional"
+        condition: "principles_analysis.design_score < 7"
+        on_true:
+          - action: "output_warning"
+            message: |
+              🎨 DESIGN GATE: User-Centric Design score is {principles_analysis.design_score}/10.
+              Below 7/10 threshold. Strengthen design choices:
+              - Evade generic AI aesthetics (Arial/Inter font, plain gray cards, purple gradients).
+              - Plan distinctive display + body typography.
+              - Apply a clear color strategy with HSL/OKLCH tokens.
+              - Enforce design rules in Stage 6.
+
+  # ========================================================================
+  # STAGE 4: BASELINE & EVALUATION PLANNING
+  # ========================================================================
+  - stage_id: "baseline_planning"
+    name: "Establish Baselines & Evaluation Plan"
+    description: "Define metrics, baselines from papers, and task-wise verification criteria"
+    depends_on: ["topic_selection"]
+    tasks:
+      - task_id: "define_baselines"
+        name: "Define Performance Baselines"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - selected_topic
+          - research_papers
+        prompt_template: |
+          Topic: {selected_topic}
+          Source Papers: {research_papers}
+          
+          Define performance baselines and their verification methods:
+          1. What metrics did papers use?
+          2. What were their best results?
+          3. What's your ambitious target?
+          4. How will you run verification tests to prove improvement?
+          
+          Create evaluation protocol and corresponding verification scripts/commands.
+        output_variable: "evaluation_plan"
+
+  # ========================================================================
+  # STAGE 5: TECH STACK & ARCHITECTURE PLANNING
+  # ========================================================================
+  - stage_id: "tech_planning"
+    name: "Tech Stack & Architecture"
+    description: "Recommend specific tools and optimize for React/Next.js best practices."
+    depends_on: ["baseline_planning"]
+    agent_skills_required:
+      - skill: "vercel-react-best-practices"
+        action: "Review architecture to prevent waterfalls. Structure data fetching via parallel fetching."
+    tasks:
+      - task_id: "recommend_tech"
+        name: "Recommend Tech Stack"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - selected_topic
+          - hackathon_type
+          - tech_ecosystem
+        prompt_template: |
+          Problem: {selected_topic}
+          Hackathon Type: {hackathon_type}
+          Available Services: {tech_ecosystem}
+
+          Recommend a tech stack that:
+          1. Provides a highly modular architecture where each component is built and verified independently before integration.
+          2. Eliminates async waterfalls (recommends Promise.all, Suspense, cache deduplication).
+          3. Minimizes bundle size (next/dynamic, directly imported libraries).
+          4. Deploys easily with auto-deployment.
+          5. Supports modern CSS (custom properties, container queries, view transitions).
+
+          Return JSON:
+          {{
+            "tech_stack": {{
+              "frontend": {{
+                "framework": "Next.js (App Router)",
+                "styling": "Vanilla CSS or CSS Modules (for custom design tokens)",
+                "fonts": "Distinctive header + readable body font",
+                "deployment": "Vercel",
+                "why": "..."
+              }},
+              "backend": {{
+                "runtime": "...",
+                "framework": "...",
+                "database": "..."
+              }},
+              "performance_guards": [
+                "async-parallel: Promise.all for independent fetches",
+                "bundle-barrel-imports: direct imports only",
+                "server-cache-react: React.cache for deduplication"
+              ]
+            }},
+            "deployment_strategy": {{
+              "hosting": "Vercel / Render"
+            }},
+            "tech_stack_score": 8
+          }}
+        output_variable: "tech_recommendations"
+
+  # ========================================================================
+  # STAGE 6: DESIGN SYSTEM & COMPONENT SPEC
+  # ========================================================================
+  - stage_id: "design_system"
+    name: "Design System & Component Spec"
+    description: |
+      Define distinctive styling, custom CSS design tokens, and components.
+      Uses ui-ux-pro-max + frontend-design + StitchMCP + impeccable rules.
+    depends_on: ["tech_planning"]
+    agent_skills_required:
+      - skill: "ui-ux-pro-max"
+        action: |
+          Query style and color recommendations matching the product type:
+          python3 ~/.agents/skills/ui-ux-pro-max/scripts/search.py "{selected_topic} {parsed_problem.primary_user}" --design-system --persist -p "{parameters.hackathon.name}"
+      - skill: "frontend-design"
+        action: |
+          Determine the bold aesthetic tone (e.g., editorial, art deco, maximalist chaos, luxury/refined)
+          and pairing of distinctive display font + body font. Avoid Inter/system defaults.
+      - skill: "impeccable"
+        action: |
+          Review guidelines. Enforce body line length 65-75ch, contrast >= 4.5:1,
+          prefers-reduced-motion curves, and verify ZERO absolute bans are violated.
+      - skill: "StitchMCP"
+        action: |
+          Create design system from brief and generate visual screen layouts.
+    tasks:
+      - task_id: "generate_design_brief"
+        name: "Generate Design System Brief"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - selected_topic
+          - parsed_problem
+          - tech_recommendations
+        prompt_template: |
+          Topic: {selected_topic}
+          User: {parsed_problem.primary_user}
+          Design Opportunity: {parsed_problem.design_opportunity}
+          Tech: {tech_recommendations.tech_stack}
+
+          Generate a design system brief in MARKDOWN. Apply these guidelines:
+          - Color Palette: Saturated brand color (30-60% surface) using OKLCH/HSL tokens.
+            Contrast ratio >= 4.5:1 for body and placeholders. No gray text on colored backgrounds.
+          - Typography: Pairs a distinctive display font (e.g., Outfit, Cl clash, space grotesque, etc. - choose based on tone)
+            with a clean body font. Max size clamp() <= 6rem. Display letter-spacing >= -0.04em.
+            Body text >= 16px to avoid mobile auto-zoom. Line height 1.5-1.75. Max line length 65-75ch.
+            No all-caps body text.
+          - Spacing & Layout: 4px/8px incremental grid. Card radius <= 16px. Flexbox for 1D, Grid for 2D.
+            Semantic z-index scale (0/10/20/40/100/1000).
+          - Motion: Duration 150-300ms, exit shorter than enter (60-70%), exponential curves (no bounce).
+            Reduced motion (@media prefers-reduced-motion) is mandatory.
+          - Interaction: Touch targets >= 44x44pt (Apple HIG) / 48x48dp (Material). Spacing >= 8px between targets.
+            No emoji as structural icons (use SVG). Clear active/hover/pressed states.
+          - Copy: Button labels (verb + object). Standalone link meaning. No marketing buzzwords (streamline, supercharge, leverage).
+          - Absolute Bans: No side-stripe card borders, no text gradients, no tiny uppercase section kicker eyebrows,
+            no numbered section headers (01, 02), no ghost-cards (border + shadow combo - pick one), no sketchy SVG doodles.
+
+          Output: Valid markdown.
+        output_variable: "design_brief"
+        output_format: "markdown"
+
+      - task_id: "stitch_design_system"
+        name: "Generate Design System via Stitch"
+        type: "skill_invocation"
+        skill: "StitchMCP"
+        steps:
+          - tool: "create_design_system_from_design_md"
+            input: "{design_brief}"
+            output_variable: "stitch_design_system_id"
+          - tool: "create_project"
+            input: "name: {parameters.hackathon.name}, description: {selected_topic}"
+            output_variable: "stitch_project_id"
+          - tool: "generate_screen_from_text"
+            inputs:
+              - text: "Landing page: {parsed_problem.design_opportunity}"
+                output_variable: "screen_landing"
+              - text: "Primary flow: main user action to solve {selected_topic}"
+                output_variable: "screen_main"
+            purpose: "Generate key screens"
+          - tool: "generate_variants"
+            input: "mobile viewport (375px) and dark mode variants"
+          - tool: "apply_design_system"
+            input: "{stitch_design_system_id}"
+          - tool: "get_screen"
+            input: "all screens"
+            output_variable: "design_specs"
+        output_variable: "design_system_output"
+
+      - task_id: "generate_css_tokens"
+        name: "Generate CSS Custom Properties"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - design_brief
+        prompt_template: |
+          Design Brief: {design_brief}
+
+          Generate production-ready CSS custom properties as a :root {} block and [data-theme="dark"] {} block.
+          Use HSL/OKLCH for colors. Include fluid type scale with clamp().
+          Include @media (prefers-reduced-motion: reduce) override for transitions.
+          Tokens: --color-*, --space-*, --text-*, --radius-*, --duration-*, --ease-*.
+        output_variable: "css_tokens"
+        output_format: "css"
+
+  # ========================================================================
+  # STAGE 7: ROADMAP & EXECUTION PLANNING (TASK-WISE & ELEMENT-WISE)
+  # ========================================================================
+  - stage_id: "roadmap"
+    name: "Build Task-Wise Implementation Roadmap & Verification Plan"
+    description: "Break the project into modular components and subparts, defining explicit verification checks for each."
+    depends_on: ["design_system"]
+    agent_skills_required:
+      - skill: "impeccable"
+        action: "Run 'node ~/.agents/skills/impeccable/scripts/context.mjs' to set project context. Structure features with 'impeccable shape' before writing code."
+      - skill: "vercel-react-best-practices"
+        action: "Refer to async-parallel, bundle-barrel-imports, and rerender-memo rules during feature coding."
+    tasks:
+      - task_id: "build_roadmap"
+        name: "Task-Wise Roadmap & Verification Gates"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - selected_topic
+          - tech_recommendations
+          - design_brief
+          - evaluation_plan
+        prompt_template: |
+          Topic: {selected_topic}
+          Tech: {tech_recommendations.tech_stack}
+          Design Brief: {design_brief}
+          Evaluation: {evaluation_plan}
+
+          Create a detailed, task-wise implementation roadmap. The project must be broken down into modular elements/components (e.g. Setup, Baseline Replication, Core Model Logic, UI Component, Integration). For each component, define its subparts, specific deliverables, and the exact verification commands or tests to run to verify that subpart before proceeding to the next.
+
+          Do NOT use time-bound allocations (like Day 1 / Day 2 / hours). Structure this strictly around component achievements and verification tests.
+
+          Return JSON:
+          {{
+            "roadmap": [
+              {{
+                "task_id": "task_1",
+                "component_name": "Setup \u0026 Baseline",
+                "subparts": [
+                  {{
+                    "subpart_id": "subpart_1_1",
+                    "description": "Establish globals.css and design system tokens",
+                    "deliverable": "globals.css with verified HSL/OKLCH custom properties",
+                    "verification_step": "Verify properties parse correctly in browser or CSS compiler"
+                  }}
+                ],
+                "verification_gate": "Method to verify this entire component has succeeded before moving to the next stage"
+              }}
+            ],
+            "critical_path": ["design-tokens", "baseline-reproduction", "core-features", "perf-optimization"]
+          }}
+        output_variable: "roadmap"
+
+  # ========================================================================
+  # STAGE 8: ACCESSIBILITY AUDIT & COMPLIANCE
+  # ========================================================================
+  - stage_id: "accessibility_audit"
+    name: "Accessibility & Guidelines Audit"
+    description: "Audit deployed demo for design guidelines and accessibility compliance."
+    depends_on: ["roadmap"]
+    agent_skills_required:
+      - skill: "web-design-guidelines"
+        action: "Fetch guidelines from Github and run verification on deployed files."
+      - skill: "impeccable"
+        action: "Run 'impeccable audit <demo_files>' to evaluate contrast, text measure, and motion curves."
+      - skill: "a11y-debugging"
+        action: |
+          Lighthouse accessibility audit on {demo_url}. Verify:
+          - Semantic HTML: Single h1, landmark elements.
+          - Alt text on all meaningful images.
+          - Color contrast >= 4.5:1 on text.
+          - Focus visible on Tab navigation.
+          - Touch targets >= 44x44pt.
+    tasks:
+      - task_id: "a11y_audit"
+        name: "Run Accessibility & Guidelines Audit"
+        type: "skill_invocation"
+        skill: "a11y-debugging"
+        checks:
+          - id: "semantic_html"
+            description: "Correct header hierarchy and semantic landmarks"
+            pass_threshold: "required"
+          - id: "alt_text"
+            description: "All non-decorative images have alt text"
+            pass_threshold: "required"
+          - id: "accessible_names"
+            description: "Interactive elements have labels"
+            pass_threshold: "required"
+          - id: "color_contrast"
+            description: "Text contrast meets WCAG AA (>= 4.5:1)"
+            pass_threshold: "required"
+          - id: "focus_visible"
+            description: "Visible focus ring on keyboard nav"
+            pass_threshold: "required"
+          - id: "touch_targets"
+            description: "Tappable areas >= 44x44px"
+            pass_threshold: "required"
+          - id: "reduced_motion"
+            description: "Prefers-reduced-motion respected"
+            pass_threshold: "recommended"
+        output_variable: "a11y_report"
+        blocking: true  # Failures block final brief generation
+
+  # ========================================================================
+  # STAGE 9: QUALITY & SECURITY CHECKLIST
+  # ========================================================================
+  - stage_id: "quality_checklist"
+    name: "Quality & Security Requirements"
+    description: "Define mandatory quality milestones."
+    depends_on: ["accessibility_audit"]
+    tasks:
+      - task_id: "create_checklist"
+        name: "Create Mandatory Checklist"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - tech_recommendations
+          - a11y_report
+        prompt_template: |
+          Tech Stack: {tech_recommendations.tech_stack}
+          A11y Report: {a11y_report}
+
+          Generate a checklist covering:
+          1. MUST-HAVES: Core features, design system integration, a11y compliance (0 required failures).
+          2. SHOULD-HAVES: Live URL, dark mode fully tested, inputs validated on blur.
+          3. NICE-TO-HAVES: View transitions, scroll-driven reveals.
+
+          Return JSON:
+          {{
+            "must_haves": [
+              {{
+                "requirement": "Accessibility checks passed",
+                "why": "Judges check semantic HTML and contrast",
+                "verification": "a11y_report has 0 failures"
+              }},
+              {{
+                "requirement": "Zero absolute design bans violated",
+                "why": "Ensures UI looks premium, not like AI template",
+                "verification": "Manual check against design bans"
+              }}
+            ],
+            "should_haves": [],
+            "nice_to_haves": []
+          }}
+        output_variable: "checklists"
+
+  # ========================================================================
+  # STAGE 10: PERFORMANCE AUDIT
+  # ========================================================================
+  - stage_id: "performance_audit"
+    name: "React & Next.js Performance Audit"
+    description: "Audit rendering speed, network waterfalls, and console health."
+    depends_on: ["quality_checklist"]
+    agent_skills_required:
+      - skill: "vercel-react-best-practices"
+        action: "Check for waterfalls, dynamic code splitting (next/dynamic), and unnecessary re-renders (rerender-memo)."
+      - skill: "impeccable"
+        action: "Run 'impeccable optimize <demo_files>' to eliminate render-blocking CSS/JS and font FOIT."
+      - skill: "chrome-devtools"
+        action: |
+          Evaluate deployed URL:
+          1. LCP < 2.5s (Check image fetchpriority="high", preloading, webp format).
+          2. INP < 200ms (Check event debouncing/throttling).
+          3. Console Errors (Verify 0 errors in user flow).
+          4. Network: Verify 0 failed API requests (4xx/5xx).
+    tasks:
+      - task_id: "performance_check"
+        name: "Chrome DevTools Performance Audit"
+        type: "skill_invocation"
+        skill: "chrome-devtools"
+        metrics:
+          - metric: "LCP"
+            threshold: "2500ms"
+            severity: "warning"
+          - metric: "INP"
+            threshold: "200ms"
+            severity: "warning"
+          - metric: "console_errors"
+            threshold: 0
+            severity: "blocking"
+          - metric: "network_failed_requests"
+            threshold: 0
+            severity: "blocking"
+        output_variable: "performance_report"
+
+  # ========================================================================
+  # STAGE 11: FINAL PROJECT BRIEF
+  # ========================================================================
+  - stage_id: "final_brief"
+    name: "Generate Project Brief"
+    description: "Generate comprehensive spec showing how every subpart was verified."
+    depends_on: ["performance_audit"]
+    tasks:
+      - task_id: "generate_brief"
+        name: "Create Project Brief (Markdown)"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - selected_topic
+          - research_papers
+          - evaluation_plan
+          - tech_recommendations
+          - design_brief
+          - css_tokens
+          - roadmap
+          - checklists
+          - a11y_report
+          - performance_report
+        prompt_template: |
+          Topic: {selected_topic}
+          Papers: {research_papers}
+          Evaluation: {evaluation_plan}
+          Tech Stack: {tech_recommendations}
+          Design system: {design_brief}
+          CSS Tokens: {css_tokens}
+          Roadmap: {roadmap}
+          Checklist: {checklists}
+          Accessibility Report: {a11y_report}
+          Performance Report: {performance_report}
+
+          Generate a comprehensive markdown project brief that incorporates research evidence, baseline metrics,
+          and task-wise verification walkthroughs.
+          
+          SECTIONS REQUIRED:
+          1. Overview, Selected Topic, & Research Gap (proven in literature)
+          2. Citations & Bibliography of source papers
+          3. Baseline Metrics and Target Evaluation Protocol
+          4. Tech Stack & Performance Architecture (eliminating async waterfalls)
+          5. Design System Spec (OKLCH/HSL tokens, typography pairings, micro-animations, compliance with design guidelines)
+          6. Roadmap (Task-wise breakdown and verification plan showing how each element is built and verified first)
+          7. Accessibility Compliance Status (WCAG verification)
+          8. Performance Metrics (LCP, INP, console health)
+          9. Definition of Done
+        output_variable: "project_brief"
+        output_format: "markdown"
+
+  # ========================================================================
+  # STAGE 12: FINAL QA & SLOP ASSESSMENT
+  # ========================================================================
+  - stage_id: "final_qa"
+    name: "Slop Test & Quality Assurance"
+    description: "Audit final product against AI slop indicators, verifying every subpart is fully achieved."
+    depends_on: ["final_brief"]
+    agent_skills_required:
+      - skill: "impeccable"
+        action: "Run 'impeccable polish <files>' and 'impeccable critique <files>'. Audit copy for marketing buzzwords and layouts for AI templates."
+    tasks:
+      - task_id: "qa_report"
+        name: "QA Report & Slop Assessment"
+        type: "prompt"
+        model: "{MODEL}"
+        input_variables:
+          - a11y_report
+          - performance_report
+          - project_brief
+        prompt_template: |
+          A11y: {a11y_report}
+          Performance: {performance_report}
+          Brief: {project_brief}
+
+          Perform final QA.
+          - Evaluate against \"impeccable\" AI slop tests: Does the layout look like a typical AI template?
+          - Check copy: Are we using buzzwords (supercharge, leverage, unleash)?
+          - Check visual balance: Is contrast high? Are animations natural?
+          - Verify that every element and subpart of the roadmap has a passing verification test.
+          - Confirm all blocking gates are green.
+
+          Return JSON:
+          {{
+            \"overall_score\": 9.0,
+            \"confidence_level\": 90,
+            \"design_score\": 8,
+            \"a11y_score\": 9,
+            \"performance_score\": 9,
+            \"slop_test_passed\": true,
+            \"red_flags\": [],
+            \"green_lights\": [
+              \"Zero waterfalls in architecture\",
+              \"CSS custom properties mapped using HSL/OKLCH\",
+              \"Lighthouse accessibility audit passes with 0 failures\",
+              \"LCP < 2.5s, no console errors\",
+              \"Project is grounded in research literature gaps\",
+              \"All decomposed subparts verified and passed\"
+            ],
+            \"final_recommendation\": \"Ready to submit. Visuals are premium, code is optimized, and all subparts have been verified.\"
+          }}
+        output_variable: "qa_report"
+
+# ============================================================================
+# OUTPUTS
+# ============================================================================
+outputs:
+  # Research & Ideation Outputs
+  - file: "RESEARCH_ANALYSIS.md"
+    content: "{gap_analysis}"
+    description: "Full research gap analysis"
+  
+  - file: "RESEARCH_TOPICS.json"
+    content: "{research_topics}"
+    description: "3-4 research-backed topics with scoring"
+  
+  - file: "SELECTED_TOPIC.json"
+    content: "{selected_topic}"
+    description: "Selected topic with rationale"
+
+  - file: "EVALUATION_PLAN.json"
+    content: "{evaluation_plan}"
+    description: "Baselines, metrics, success criteria"
+  
+  - file: "PAPER_REFERENCES.bib"
+    content: "{research_papers_bibtex}"
+    description: "BibTeX citations for source papers"
+
+  # Design & Tech Architecture Outputs
+  - file: "PROJECT_BRIEF.md"
+    content: "{project_brief}"
+    description: "Complete technical, design, and research-backed project brief"
+  
+  - file: "DESIGN_SYSTEM.md"
+    content: "{design_brief}"
+    description: "Design style, layout, and interaction specifications"
+  
+  - file: "CSS_TOKENS.css"
+    content: "{css_tokens}"
+    description: "Custom CSS custom properties using OKLCH/HSL"
+  
+  - file: "ROADMAP.json"
+    content: "{roadmap}"
+    description: "Task-wise implementation and verification plan"
+  
+  - file: "TECH_STACK.json"
+    content: "{tech_recommendations}"
+    description: "Architecture, research baseline, and optimization details"
+  
+  - file: "CHECKLISTS.json"
+    content: "{checklists}"
+    description: "Verification checkpoints"
+  
+  - file: "A11Y_REPORT.json"
+    content: "{a11y_report}"
+    description: "Accessibility compliance audit"
+  
+  - file: "PERFORMANCE_REPORT.json"
+    content: "{performance_report}"
+    description: "Core Web Vitals and console status"
+  
+  - file: "QA_REPORT.json"
+    content: "{qa_report}"
+    description: "Final quality assurance and slop assessment"
+
+# ============================================================================
+# WORKFLOW INPUTS
+# ============================================================================
+inputs:
+  - name: "problem_statement"
+    type: "string"
+    required: true
+    description: "The challenge or problem area to research"
+    example: "Improve computer vision model efficiency on edge devices"
+  
+  - name: "domain_area"
+    type: "string"
+    required: true
+    description: "Research domain (AI/ML/CV/NLP/RL/etc)"
+    choices: ["ai", "ml", "cv", "nlp", "rl", "graph", "time_series", "optimization", "hardware", "other"]
+    example: "cv"
+  
+  - name: "team_expertise"
+    type: "string"
+    required: false
+    description: "Team's background (helps recommend topics)"
+    example: "Strong PyTorch + computer vision experience"
+  
+  - name: "hackathon_type"
+    type: "string"
+    required: false
+    choices: ["ai", "ml", "data", "research", "other"]
+    example: "ai"
+
+  - name: "context"
+    type: "string"
+    required: false
+    description: "Additional constraints or details"
+
+  - name: "constraints"
+    type: "string"
+    required: false
+    description: "Timeline or technical rules"
+
+  - name: "demo_url"
+    type: "string"
+    required: false
+    description: "URL of deployed demo (needed for performance & a11y checks)"
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+config:
+  timeout_minutes: 45
+  max_retries: 2
+  error_handling: "detailed"
+  
+  model:
+    default: "{MODEL}"
+    temperature: 0.7
+    max_tokens: 4000
+    
+  stage_gates:
+    - gate: "scope_check"
+      blocks: "research_discovery"
+      condition: "parsed_problem.scope_risk == 'too_broad'"
+    - gate: "design_gate"
+      blocks: "tech_planning"
+      condition: "principles_analysis.design_score < 7"
+    - gate: "a11y_gate"
+      blocks: "final_brief"
+      condition: "a11y_report.required_failures > 0"
+  
+  internal_system_prompt: |
+    You are a research-informed hackathon architect. Your job is to:
+    1. Find what researchers say is limited in their papers and extract concrete gaps.
+    2. Decompose project topics into clear, verifiable subparts.
+    3. Ensure projects are novel, feasible, and verifiable task-wise.
+    4. Ensure every development task outlines a verification check.
+    5. Prevent scope creep (one problem, solved deeply).
+    6. Enforce technical best practices: eliminate network waterfalls, optimize client bundles, handle caching.
+    7. DEMAND design excellence: avoid typical AI templates, apply bold OKLCH/HSL color palettes, pair characterful fonts.
+    8. Guard against AI slop layouts (no side-stripe borders, no uppercase eyebrows, no over-rounding, no buzzwords).
+    9. Run automated accessibility (a11y) and performance checks on the deployed build.
+    
+    Judge projects on "does this address a research gap, and is every component verified and polished?"
+  
+  environment:
+    MODEL: "claude-3.5-sonnet"
+    TEMPERATURE: 0.8
+    MAX_TOKENS: 6000
+
+# ============================================================================
+# SUCCESS CRITERIA
+# ============================================================================
+success_criteria:
+  - "Problem statement researched in literature (minimum 3 papers)"
+  - "3-4 topics generated, each solving one specific gap decomposed into subparts"
+  - "Each topic has source papers cited and gap explained"
+  - "Baselines from papers clearly documented"
+  - "Success metrics and verification protocol defined"
+  - "Overall design score is >= 7/10 (blocks tech planning if less)"
+  - "Tech stack explicitly addresses eliminating waterfalls and bundle sizes"
+  - "Design system specifies fonts, spacing, HSL/OKLCH colors, and motion"
+  - "Zero absolute design bans (no gradient text, no eyebrows, no over-rounding)"
+  - "Roadmap breaks down every element into verifiable subparts, outlining tests and verification checks to run before moving onto successive tasks"
+  - "Accessibility audit shows 0 required failures (blocks final brief if any)"
+  - "Performance audit validates LCP, INP, 0 console errors, 0 failed fetches"
+  - "QA report confirms project passes the AI slop test and all subparts are verified"
+
+# ============================================================================
+# RESEARCH-BACKED HACKATHON PHILOSOPHY
+# ============================================================================
+philosophy: |
+  This workflow elevates hackathon projects from "ideas that sound cool" to 
+  "solutions that address real research gaps proven in literature" while enforcing
+  rigorous engineering execution and design.
+  
+  Key principles:
+  1. EVERY project solves a gap identified by researchers.
+  2. EVERY project has baselines to measure against.
+  3. EVERY project is novel vs. what's in papers.
+  4. EVERY project is built task-wise, verifying each element before moving forward.
+  5. EVERY project uses a custom, polished, non-AI-slop design system.
+  6. EVERY project passes automated quality, accessibility, and performance audits.
+  7. EVERY project creates reproducible, shareable, and fully verified code.
