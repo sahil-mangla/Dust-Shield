@@ -7,7 +7,7 @@
 // ─── Scene globals ───────────────────────────────────────────────────────────
 let scene, camera, renderer, controls, clock;
 let moonMesh, starField;
-let surfaceGroup, roverMesh, groundMesh, solarPanelMesh, dustPoints;
+let surfaceGroup, roverMesh, groundMesh, dustPoints;
 
 // ─── Simulation State ────────────────────────────────────────────────────────
 const state = {
@@ -41,16 +41,14 @@ const particles = [];
 let dustPositionsAttr, dustColorsAttr;
 let dustMaterial;
 
-const MAX_PARTICLES = 1200;
+const MAX_PARTICLES = 300;
 const LUNAR_GRAVITY = -1.62 * 0.3;
 
 const dustSystem = {
   panelMeshes: [],
   panelBoxes: [],
   panelSurfaces: [],
-  panelOverlays: [],
   stuckCounts: [],
-  maxPerPanel: 600,
   usingFallback: false
 };
 
@@ -130,7 +128,6 @@ function init() {
   scene.add(surfaceGroup);
 
   loadLunarTerrain();
-  buildSolarPanel();
   buildDustParticles();
   loadRover();
 
@@ -179,7 +176,7 @@ function buildMoon() {
 
 // ─── Procedural Star Field ────────────────────────────────────────────────────
 function buildStars() {
-  const starCount = 8000;
+  const starCount = 6000;
   const positions = new Float32Array(starCount * 3);
   const sizes = new Float32Array(starCount);
   const alphas = new Float32Array(starCount);
@@ -356,114 +353,27 @@ function _buildFallbackTerrain() {
 }
 
 
-function buildSolarPanel() {
-  const panelTex = createSolarPanelTexture();
-  
-  const solarCellMat = new THREE.MeshStandardMaterial({
-    map: panelTex,
-    roughness: 0.15,
-    metalness: 0.6
-  });
-
-  const frameMat = new THREE.MeshStandardMaterial({
-    color: 0x5a5d64,
-    roughness: 0.3,
-    metalness: 0.8
-  });
-
-  const materials = [frameMat, frameMat, solarCellMat, frameMat, frameMat, frameMat];
-
-  const geo = new THREE.BoxGeometry(0.5, 0.02, 0.4);
-  solarPanelMesh = new THREE.Mesh(geo, materials);
-  solarPanelMesh.position.set(0, 0.16, 0);
-  surfaceGroup.add(solarPanelMesh);
-}
-
-function createSolarPanelTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-  
-  ctx.fillStyle = '#0a1428';
-  ctx.fillRect(0, 0, 512, 512);
-  
-  ctx.strokeStyle = '#1a2a48';
-  ctx.lineWidth = 3;
-  for (let x = 64; x < 512; x += 64) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 512);
-    ctx.stroke();
-  }
-  for (let y = 128; y < 512; y += 128) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(512, y);
-    ctx.stroke();
-  }
-
-  ctx.lineWidth = 3.0;
-  
-  ctx.strokeStyle = '#b8924b';
-  ctx.beginPath();
-  ctx.moveTo(20, 15);
-  ctx.lineTo(492, 15);
-  ctx.stroke();
-  
-  ctx.strokeStyle = '#9eb6df';
-  ctx.beginPath();
-  ctx.moveTo(20, 497);
-  ctx.lineTo(492, 497);
-  ctx.stroke();
-
-  const numFingers = 24;
-  const spacing = 472 / numFingers;
-  for (let i = 0; i <= numFingers; i++) {
-    const x = 20 + i * spacing;
-    if (i % 2 === 0) {
-      ctx.strokeStyle = '#b8924b';
-      ctx.beginPath();
-      ctx.moveTo(x, 15);
-      ctx.lineTo(x, 470);
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = '#9eb6df';
-      ctx.beginPath();
-      ctx.moveTo(x, 497);
-      ctx.lineTo(x, 42);
-      ctx.stroke();
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.ClampToEdgeWrapping;
-  tex.wrapT = THREE.ClampToEdgeWrapping;
-  return tex;
-}
-
-// ─── Blue Solar Panel Detection ──────────────────────────────────────────────
-function isBluePanel(material) {
-  if (!material) return false;
-  const mats = Array.isArray(material) ? material : [material];
-  for (const mat of mats) {
-    const c = mat.color;
-    if (!c) continue;
-    if (c.b > c.r * 1.2 && c.b > c.g * 1.2 && c.b > 0.15) return true;
-  }
-  return false;
-}
-
-function detectBluePanels(root) {
-  dustSystem.panelMeshes = [];
-  dustSystem.panelBoxes = [];
+// ─── Dust Panel Detection (hierarchy-based) ───────────────────────────────────
+// Traverses the rover GLB hierarchy and targets any mesh whose parent Object3D
+// name contains "panels". This replaces all prior color-detection fallback logic.
+function detectDustPanels(root) {
+  dustSystem.panelMeshes  = [];
+  dustSystem.panelBoxes   = [];
   dustSystem.panelSurfaces = [];
-  dustSystem.stuckCounts = [];
+  dustSystem.stuckCounts  = [];
+
+  root.updateMatrixWorld(true);
 
   root.traverse((child) => {
-    if (child.isMesh && isBluePanel(child.material)) {
+    const parentName = child.parent?.name?.toLowerCase() || '';
+    if (child.isMesh && parentName.includes('panels')) {
       child.updateWorldMatrix(true, false);
       const box = new THREE.Box3().setFromObject(child);
+
+      console.log('SOLAR PANEL DETECTED:', child.name);
+      console.log('  Box3 min:', box.min);
+      console.log('  Box3 max:', box.max);
+
       dustSystem.panelMeshes.push(child);
       dustSystem.panelBoxes.push(box);
       dustSystem.panelSurfaces.push(box.max.y);
@@ -473,55 +383,18 @@ function detectBluePanels(root) {
 
   const n = dustSystem.panelMeshes.length;
   if (n > 0) {
-    writeLog(`[DustShield] Detected ${n} blue solar panel(s) on rover. Targeting for dust simulation.`, 'success');
     dustSystem.usingFallback = false;
-    dustSystem.panelBoxes.forEach((box, idx) => buildDustOverlay(box, idx));
+    writeLog(`[DustShield] Detected ${n} solar panel mesh(es) via rover hierarchy. Targeting for dust simulation.`, 'success');
   } else {
-    writeLog('[DustShield] No blue panels on rover — using procedural panel fallback.', 'warning');
-    dustSystem.usingFallback = true;
-    if (solarPanelMesh) {
-      solarPanelMesh.updateWorldMatrix(true, false);
-      const box = new THREE.Box3().setFromObject(solarPanelMesh);
-      dustSystem.panelMeshes.push(solarPanelMesh);
-      dustSystem.panelBoxes.push(box);
-      dustSystem.panelSurfaces.push(box.max.y);
-      dustSystem.stuckCounts.push(0);
-      buildDustOverlay(box, 0);
-    }
+    writeLog('[DustShield] No panel meshes found in rover hierarchy. Check GLB node names.', 'warning');
   }
 
   rebuildParticlesForPanels();
 }
 
-// ─── Dust Particles Generator (No-op placeholder, handled by buildDustOverlay/rebuildParticlesForPanels) ──
-function buildDustParticles() {
-  // Real particles are built after panel detection in detectBluePanels
-}
-
-// ─── Dust Overlay Per Panel ───────────────────────────────────────────────────
-function buildDustOverlay(box, idx) {
-  const sizeX = Math.max(box.max.x - box.min.x, 0.05);
-  const sizeZ = Math.max(box.max.z - box.min.z, 0.05);
-  const centerX = (box.min.x + box.max.x) / 2;
-  const centerZ = (box.min.z + box.max.z) / 2;
-  const surfaceY = box.max.y + 0.003;
-
-  const geo = new THREE.PlaneGeometry(sizeX, sizeZ);
-  geo.rotateX(-Math.PI / 2);
-
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0x9e8a72,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-
-  const overlay = new THREE.Mesh(geo, mat);
-  overlay.position.set(centerX, surfaceY, centerZ);
-  surfaceGroup.add(overlay);
-  dustSystem.panelOverlays[idx] = overlay;
-}
+// ─── Dust Particles Generator (No-op placeholder) ────────────────────────────
+// Real particles are built after rover load + detectDustPanels() completes.
+function buildDustParticles() {}
 
 // ─── Particle Pool Builder (targeting detected panel surfaces) ────────────────
 function rebuildParticlesForPanels() {
@@ -544,18 +417,28 @@ function rebuildParticlesForPanels() {
     const box  = dustSystem.panelBoxes[pIdx];
     const surfY = dustSystem.panelSurfaces[pIdx];
 
-    const px = box.min.x + Math.random() * (box.max.x - box.min.x);
-    const pz = box.min.z + Math.random() * (box.max.z - box.min.z);
-    const py = surfY + 0.001 + Math.random() * 0.002;
+    // Irregular scatter: bias spawn toward random sub-clusters within the panel
+    // to avoid a uniform rectangle fill.
+    const clusterU = Math.random();
+    const clusterV = Math.random();
+    const jitterU  = (Math.random() - 0.5) * 0.35;
+    const jitterV  = (Math.random() - 0.5) * 0.35;
+    const u = Math.max(0, Math.min(1, clusterU + jitterU));
+    const v = Math.max(0, Math.min(1, clusterV + jitterV));
+
+    const px = box.min.x + u * (box.max.x - box.min.x);
+    const pz = box.min.z + v * (box.max.z - box.min.z);
+    const py = surfY + 0.0005 + Math.random() * 0.0008;
 
     positions[i * 3]     = px;
     positions[i * 3 + 1] = py;
     positions[i * 3 + 2] = pz;
 
+    // Colour: warm grey-beige regolith tones with subtle variation
     const t = Math.random();
-    colors[i * 3]     = 0.54 + t * 0.12;
-    colors[i * 3 + 1] = 0.50 + t * 0.10;
-    colors[i * 3 + 2] = 0.40 + t * 0.08;
+    colors[i * 3]     = 0.72 + t * 0.10;  // R
+    colors[i * 3 + 1] = 0.68 + t * 0.08;  // G
+    colors[i * 3 + 2] = 0.58 + t * 0.06;  // B
 
     particles.push({
       x: px, y: py, z: pz,
@@ -576,37 +459,47 @@ function rebuildParticlesForPanels() {
   geo.setAttribute('color', dustColorsAttr);
 
   dustMaterial = new THREE.PointsMaterial({
-    size: 0.008,
+    size: 0.003,
     map: createDustTexture(),
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.92,
     depthWrite: false,
     vertexColors: true,
-    blending: THREE.NormalBlending,
+    blending: THREE.AdditiveBlending,
+    sizeAttenuation: true,
   });
 
   dustPoints = new THREE.Points(geo, dustMaterial);
   surfaceGroup.add(dustPoints);
 
-  updateOverlayOpacities();
-  writeLog(`[DustShield] ${count} dust particles initialised on ${panelCount} panel surface(s).`, 'info');
+  writeLog(`[DustShield] ${count} regolith particles initialised on ${panelCount} panel surface(s).`, 'info');
 }
 
+// Crisp hard-edged grain texture — resembles a microscopic regolith speck.
+// No soft gradient / fog falloff.
 function createDustTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 32;
-  canvas.height = 32;
+  canvas.width = 16;
+  canvas.height = 16;
   const ctx = canvas.getContext('2d');
-  
-  const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
-  grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-  grad.addColorStop(0.3, 'rgba(220, 220, 220, 0.85)');
-  grad.addColorStop(0.7, 'rgba(160, 160, 160, 0.25)');
-  grad.addColorStop(1, 'rgba(160, 160, 160, 0.0)');
-  
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 32, 32);
-  
+
+  // Hard circular core with a razor-thin anti-alias ring
+  const cx = 8, cy = 8;
+  ctx.clearRect(0, 0, 16, 16);
+
+  // Outer anti-alias halo (very thin, radius 6)
+  const halo = ctx.createRadialGradient(cx, cy, 4.5, cx, cy, 6.5);
+  halo.addColorStop(0.0, 'rgba(255,255,255,0.18)');
+  halo.addColorStop(1.0, 'rgba(255,255,255,0.00)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(0, 0, 16, 16);
+
+  // Crisp filled disc core
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+  ctx.fill();
+
   return new THREE.CanvasTexture(canvas);
 }
 
@@ -620,17 +513,17 @@ function loadRover() {
     'assets/nasa/rover.glb',
     (gltf) => {
       roverMesh = gltf.scene;
-      
+
+      // ── Scale to fit the surface scene ──────────────────────────────────
       const box = new THREE.Box3().setFromObject(roverMesh);
       const size = new THREE.Vector3();
       box.getSize(size);
       const maxDim = Math.max(size.x, size.y, size.z);
-      
       const scaleFactor = 0.65 / (maxDim || 1);
       roverMesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
-      
       roverMesh.position.set(0, -0.2, 0);
 
+      // ── Material quality pass ────────────────────────────────────────────
       roverMesh.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = false;
@@ -646,16 +539,16 @@ function loadRover() {
       roverLoaded = true;
       writeLog('Rover 3D model loaded successfully.', 'success');
 
-      // Detect blue solar panels now that rover is in scene with valid world matrices
-      detectBluePanels(roverMesh);
+      // ── Detect solar panels via GLB node hierarchy ───────────────────────
+      // Must run after the rover is added to the scene so world matrices are valid.
+      detectDustPanels(roverMesh);
     },
     undefined,
     (err) => {
       isRoverLoading = false;
-      writeLog('Rover model load failed. Constructing procedural fallback.', 'warning');
+      writeLog('Rover model load failed. Constructing procedural fallback (no dust panels).', 'warning');
       buildProceduralRover();
-      // Use the procedural solar panel as the fallback dust target
-      detectBluePanels(surfaceGroup);
+      // Procedural rover has no "panels" hierarchy — dust sim stays inactive.
     }
   );
 }
@@ -920,14 +813,7 @@ function simulateMicrocontrollerSignals() {
   }, 4000);
 }
 
-// ─── Overlay Opacity Updater ─────────────────────────────────────────────────
-function updateOverlayOpacities() {
-  dustSystem.panelOverlays.forEach((overlay, idx) => {
-    if (!overlay) return;
-    const ratio = Math.min(1, (dustSystem.stuckCounts[idx] || 0) / dustSystem.maxPerPanel);
-    overlay.material.opacity = ratio * 0.78;
-  });
-}
+// (overlay system removed — dust is now represented exclusively by point particles)
 
 // ─── Dust Re-deposition (Reset) ──────────────────────────────────────────────
 function resetDust() {
@@ -967,7 +853,6 @@ function resetDust() {
   }
 
   dustPositionsAttr.needsUpdate = true;
-  updateOverlayOpacities();
   
   state.dustCoverage = 100;
   state.solarEfficiency = 0;
@@ -1087,7 +972,6 @@ function updateDustSimulation(deltaTime, elapsed) {
   }
 
   dustPositionsAttr.needsUpdate = true;
-  updateOverlayOpacities();
 
   // Aggregate coverage
   let totalStuck = 0;
