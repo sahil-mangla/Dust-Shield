@@ -23,7 +23,7 @@ const state = {
 
 // ─── Animation & Transition State ───────────────────────────────────────────
 let transitionTime = 0;
-const transitionDuration = 2.0; // seconds for zoom
+const transitionDuration = 3.5; // seconds for zoom
 const startCamPos = new THREE.Vector3();
 const targetCamPos = new THREE.Vector3();
 const startControlsTarget = new THREE.Vector3();
@@ -106,6 +106,7 @@ function init() {
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.3;
   controls.enablePan = false;
+  controls.enabled = false; // Disable during intro cinematic
 
   // ── Lighting — cinematic 3-point NASA-style setup ─────────────────────────
   //
@@ -718,26 +719,23 @@ function buildProceduralRover() {
   writeLog('Procedural rover constructed at origin.', 'success');
 }
 
-// ─── Landing Trigger (Button-driven) ────────────────────────────────────────
+// ─── Landing Trigger (Automated Cinematic Descent) ──────────────────────────
 function initiateDescent() {
   if (state.mode !== 'orbit') return;
 
-  // Derive landing point from current camera look direction → moon surface
-  const camDir = new THREE.Vector3();
-  camera.getWorldDirection(camDir);
-  // Cast from camera position along look direction, find where it hits unit sphere
-  const point = camDir.clone().normalize();
+  // Derive landing point from the camera's current position at the end of the orbit intro
+  const landingNormal = camera.position.clone().normalize();
 
   startCamPos.copy(camera.position);
   startControlsTarget.copy(controls.target);
 
-  // Target: just above the surface (radius 1.08) in the camera forward direction
-  targetCamPos.copy(point).multiplyScalar(1.08);
-  targetControlsTarget.copy(point);
+  // Target: just above the surface (radius 1.06) in the direction of the landing normal
+  targetCamPos.copy(landingNormal).multiplyScalar(1.06);
+  targetControlsTarget.copy(landingNormal);
 
   // Compute lat/lon from the landing normal
-  const phi   = Math.acos(Math.min(1, Math.max(-1, point.y)));
-  const theta = Math.atan2(point.z, point.x);
+  const phi   = Math.acos(Math.min(1, Math.max(-1, landingNormal.y)));
+  const theta = Math.atan2(landingNormal.z, landingNormal.x);
   selectedLat = 90 - (phi * 180 / Math.PI);
   selectedLon = theta * 180 / Math.PI;
 
@@ -1251,31 +1249,103 @@ function tick() {
   }
 
   if (state.mode === 'orbit') {
+    // ─── Startup Cinematic Intro ───
+    const introTime = elapsed;
+    const INTRO_DURATION = 6.5;
+
+    // Gradual exposure adaptation: fade in from black (0.0) to full exposure (1.0)
+    renderer.toneMappingExposure = Math.min(1.0, introTime / 3.5);
+
+    // Slow orbital camera motion around the Moon & camera drift
+    const orbitAngle = introTime * 0.08;
+    const orbitRadius = 3.2 + Math.sin(introTime * 0.4) * 0.12;
+    camera.position.x = Math.sin(orbitAngle) * orbitRadius;
+    camera.position.z = Math.cos(orbitAngle) * orbitRadius;
+    camera.position.y = 0.4 + Math.sin(introTime * 0.25) * 0.15;
+    camera.lookAt(0, 0, 0);
+
     if (moonMesh) {
       moonMesh.rotation.y = elapsed * 0.04;
     }
+    controls.target.set(0, 0, 0);
     controls.update();
+
+    // Cinematic logs timeline
+    if (!state.loggedIntro1 && introTime >= 0.5) {
+      writeLog('MISSION INITIALIZATION: LOW LUNAR ORBIT INSERTION', 'info');
+      state.loggedIntro1 = true;
+    }
+    if (!state.loggedIntro2 && introTime >= 2.0) {
+      writeLog('COMMUNICATION BAND SECURED // LINKING TELESCOPE ARRAY', 'success');
+      state.loggedIntro2 = true;
+    }
+    if (!state.loggedIntro3 && introTime >= 3.8) {
+      writeLog('AUTONOMOUS SCAN: LOCKING ON ROVER LANDING SITE', 'info');
+      state.loggedIntro3 = true;
+    }
+    if (!state.loggedIntro4 && introTime >= 5.5) {
+      writeLog('DESCENT SEQUENCE APPROVED. PREPARING RETRO-ENGINES...', 'warning');
+      state.loggedIntro4 = true;
+    }
+
+    // Automatically trigger descent after intro duration
+    if (introTime >= INTRO_DURATION) {
+      initiateDescent();
+    }
   } 
   else if (state.mode === 'descending') {
     transitionTime += deltaTime;
     let t = Math.min(1.0, transitionTime / transitionDuration);
-    let ease = t * t * (3 - 2 * t);
     
-    camera.position.lerpVectors(startCamPos, targetCamPos, ease);
-    controls.target.lerpVectors(startControlsTarget, targetControlsTarget, ease);
+    // Split the transition:
+    // 0.0 to 0.75: descent towards the globe
+    // 0.75 to 1.0: switch to surface group and blend to final camera focus
+    const tSplit = 0.75;
+    
+    if (t < tSplit) {
+      // Phase 1: Zoom in towards the sphere surface
+      let progress = t / tSplit; // 0 to 1
+      let ease = progress * progress * (3 - 2 * progress); // smooth step
+      
+      camera.position.lerpVectors(startCamPos, targetCamPos, ease);
+      controls.target.lerpVectors(startControlsTarget, targetControlsTarget, ease);
+      
+      if (moonMesh) moonMesh.visible = true;
+      if (surfaceGroup) surfaceGroup.visible = false;
+      
+      // Update HUD status text
+      if (progress > 0.4 && progress < 0.8 && elHudStatus) {
+        elHudStatus.textContent = 'STATUS: DEPLOYING LANDING STRUTS';
+      }
+    } else {
+      // Phase 2: Switch to surface terrain and smoothly blend to the final rover focus
+      let progress = (t - tSplit) / (1.0 - tSplit); // 0 to 1
+      let ease = progress * progress * (3 - 2 * progress);
+      
+      if (moonMesh) moonMesh.visible = false;
+      if (surfaceGroup) surfaceGroup.visible = true;
+      
+      // Calculate camera position at the split point to start the second lerp
+      const splitCamPos = targetCamPos;
+      const splitControlsTarget = targetControlsTarget;
+      
+      const finalCamPos = new THREE.Vector3(0, 0.45, 0.55);
+      const finalControlsTarget = new THREE.Vector3(0, -0.04, 0);
+      
+      camera.position.lerpVectors(splitCamPos, finalCamPos, ease);
+      controls.target.lerpVectors(splitControlsTarget, finalControlsTarget, ease);
+      
+      if (elHudStatus) {
+        elHudStatus.textContent = 'STATUS: STATIONARY CONTACT LOCK';
+      }
+    }
+    
     controls.update();
-
-    if (t > 0.35 && t < 0.75 && elHudStatus) {
-      elHudStatus.textContent = 'STATUS: DEPLOYING LANDING STRUTS';
-    }
-    if (t >= 0.75 && elHudStatus) {
-      elHudStatus.textContent = 'STATUS: STATIONARY CONTACT LOCK';
-    }
 
     if (t >= 1.0) {
       state.mode = 'surface';
       if (elDescentHud) elDescentHud.style.display = 'none';
-      if (elBtnReturnOrbit) elBtnReturnOrbit.style.display = 'flex';
+      if (elBtnReturnOrbit) elBtnReturnOrbit.style.display = 'none';
 
       if (moonMesh) moonMesh.visible = false;
       if (surfaceGroup) surfaceGroup.visible = true;
@@ -1342,6 +1412,6 @@ function tick() {
 // ─── Entry Point ──────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   init();
-  writeLog('Three.js Space View initialised. Drag to orbit Moon globe.', 'info');
-  writeLog('Select any landing point on the Moon surface to proceed.', 'info');
+  writeLog('MISSION INITIALIZATION: LOW LUNAR ORBIT INSERTION', 'info');
+  writeLog('INITIATING AUTOMATED DIGITAL TWIN TRANSLATION...', 'info');
 });
