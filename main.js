@@ -371,10 +371,13 @@ function _buildFallbackTerrain() {
 }
 
 
-// ─── Dust Panel Detection (hierarchy-based) ───────────────────────────────────
-// Traverses the rover GLB hierarchy and targets any mesh whose parent Object3D
-// name contains "panels". Builds a MeshSurfaceSampler for each panel so dust
-// can be placed directly on the actual triangulated surface geometry.
+// ─── Dust Panel Detection (material-name-based) ──────────────────────────────
+// Traverses the rover GLB hierarchy and targets meshes whose material name
+// contains "panel". This is necessary because the rover GLB packs the entire
+// model into one node called "panels_right_front" — so filtering by parent-name
+// would incorrectly select all 9 primitives (body, mast, suspension, arm…).
+// Filtering by material name selects only the 2 actual solar-panel primitives:
+//   tex_panels_n  (prim 0)  and  tex_panels2_n  (prim 1).
 function detectDustPanels(root) {
   dustSystem.panelMeshes   = [];
   dustSystem.panelBoxes    = [];
@@ -387,53 +390,61 @@ function detectDustPanels(root) {
   root.updateMatrixWorld(true);
 
   root.traverse((child) => {
-    const parentName = child.parent?.name?.toLowerCase() || '';
-    if (child.isMesh && parentName.includes('panels')) {
-      child.updateWorldMatrix(true, false);
+    if (!child.isMesh) return;
 
-      // World-space bounding box — still used by EDS edge-ejection
-      const box = new THREE.Box3().setFromObject(child);
+    // ── Material-name guard: only register actual solar-panel surfaces ────
+    // child.material is a single Material (multi-prim GLTFs give one mesh per prim)
+    const matName = (
+      child.material?.name ||
+      (Array.isArray(child.material) ? child.material[0]?.name : '') ||
+      ''
+    ).toLowerCase();
+    if (!matName.includes('panel')) return;
 
-      console.log('SOLAR PANEL DETECTED:', child.name);
-      console.log('  Box3 min:', box.min, '  max:', box.max);
+    child.updateWorldMatrix(true, false);
 
-      // Convert panel material to high-quality MeshPhysicalMaterial
-      if (child.material) {
-        const oldMat = child.material;
-        const newMat = new THREE.MeshPhysicalMaterial({
-          color: new THREE.Color(0x0b1329), // Deep blue-black photovoltaic
-          roughness: 0.15,
-          metalness: 0.4, // Semiconductive photovoltaic reflectance
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.06,
-          reflectivity: 0.95,
-          emissive: new THREE.Color(0x000103),
-          emissiveIntensity: 0.1,
-          map: oldMat.map,
-          normalMap: oldMat.normalMap,
-          roughnessMap: oldMat.roughnessMap,
-          metalnessMap: oldMat.metalnessMap,
-        });
-        child.material = newMat;
-        child.material.needsUpdate = true;
-      }
+    // World-space bounding box — used by EDS edge-ejection logic
+    const box = new THREE.Box3().setFromObject(child);
 
-      // ── Build MeshSurfaceSampler for true surface placement ──────────────
-      let sampler = null;
-      try {
-        sampler = new THREE.MeshSurfaceSampler(child).build();
-      } catch (e) {
-        console.warn('MeshSurfaceSampler failed for', child.name, e);
-      }
+    console.log('SOLAR PANEL DETECTED:', child.name, '| material:', matName);
+    console.log('  Box3 min:', box.min, '  max:', box.max);
 
-      dustSystem.panelMeshes.push(child);
-      dustSystem.panelBoxes.push(box);
-      dustSystem.panelSurfaces.push(box.max.y);   // legacy Y for adhesion test
-      dustSystem.panelSamplers.push(sampler);      // may be null on error
-      dustSystem.panelMatrices.push(child.matrixWorld.clone());
-      dustSystem.stuckCounts.push(0);
-      dustSystem.initialCounts.push(0);
+    // ── Convert to high-quality MeshPhysicalMaterial ──────────────────────
+    if (child.material) {
+      const oldMat = child.material;
+      const newMat = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(0x0b1329), // Deep blue-black photovoltaic
+        roughness: 0.15,
+        metalness: 0.4,                  // Semiconductive reflectance
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.06,
+        reflectivity: 0.95,
+        emissive: new THREE.Color(0x000103),
+        emissiveIntensity: 0.1,
+        map:          oldMat.map,
+        normalMap:    oldMat.normalMap,
+        roughnessMap: oldMat.roughnessMap,
+        metalnessMap: oldMat.metalnessMap,
+      });
+      child.material = newMat;
+      child.material.needsUpdate = true;
     }
+
+    // ── Build MeshSurfaceSampler for true surface placement ──────────────
+    let sampler = null;
+    try {
+      sampler = new THREE.MeshSurfaceSampler(child).build();
+    } catch (e) {
+      console.warn('MeshSurfaceSampler failed for', child.name, e);
+    }
+
+    dustSystem.panelMeshes.push(child);
+    dustSystem.panelBoxes.push(box);
+    dustSystem.panelSurfaces.push(box.max.y);   // legacy Y for adhesion test
+    dustSystem.panelSamplers.push(sampler);      // may be null on error
+    dustSystem.panelMatrices.push(child.matrixWorld.clone());
+    dustSystem.stuckCounts.push(0);
+    dustSystem.initialCounts.push(0);
   });
 
   const n = dustSystem.panelMeshes.length;
@@ -624,9 +635,12 @@ function loadRover() {
                 child.material.color.multiplyScalar(4.5);
               }
             }
-            // Solar panel meshes: tiny emissive so they never vanish in shadow
-            const pName = (child.parent?.name || '').toLowerCase();
-            if (pName.includes('panels')) {
+            // Solar panel meshes: tiny emissive so they never vanish in shadow.
+            // Use material name (not parent node name) — the whole rover sits under
+            // a single node called "panels_right_front", so a parent-name check would
+            // wrongly apply emissive to the mast, body, suspension, etc.
+            const matN = (child.material?.name || '').toLowerCase();
+            if (matN.includes('panel')) {
               child.material.emissive      = child.material.emissive || new THREE.Color(0x000000);
               child.material.emissiveIntensity = 0.06;
               // Very slight teal emissive — looks like residual photovoltaic glow
