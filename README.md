@@ -50,7 +50,20 @@ DustShield/
 
 ## 🛠️ How to Run Locally
 
-Since the application uses Three.js and loads external assets (GLTF models and texture maps) via Web APIs, running it directly by double-clicking the `index.html` file will trigger CORS security blocks in your browser. 
+### 1. Retrieve Large 3D Assets (Git LFS)
+This repository uses **Git LFS (Large File Storage)** to manage the binary 3D assets (e.g., `.glb` models for the Moon globe and rover). If you cloned the repository without Git LFS active, you will only have small text pointer files, which will cause Three.js loading errors.
+
+Before running the application, make sure Git LFS is installed and pull the binary files:
+```bash
+# Ensure Git LFS is installed on your system (e.g., 'brew install git-lfs' on macOS)
+git lfs install
+
+# Pull the binary assets
+git lfs pull
+```
+
+### 2. Run the Local HTTP Server
+Since the application uses Three.js and loads external assets via Web APIs, running it directly by double-clicking the `index.html` file will trigger CORS security blocks in your browser. 
 
 Please run it through a local web server:
 
@@ -66,6 +79,7 @@ Please run it through a local web server:
 
 3. **Open your browser** and navigate to:
    [http://localhost:8000](http://localhost:8000)
+
 
 ---
 

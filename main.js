@@ -45,10 +45,12 @@ const MAX_PARTICLES = 600;
 const LUNAR_GRAVITY = -1.62 * 0.3;
 
 const dustSystem = {
-  panelMeshes: [],
-  panelBoxes: [],
-  panelSurfaces: [],
-  stuckCounts: [],
+  panelMeshes:   [],
+  panelBoxes:    [],   // kept for EDS edge-ejection bounds test
+  panelSurfaces: [],   // kept for legacy adhesion Y-test
+  panelSamplers: [],   // THREE.MeshSurfaceSampler per panel
+  panelMatrices: [],   // cloned world Matrix4 at detect-time
+  stuckCounts:   [],
   usingFallback: false
 };
 
@@ -91,7 +93,7 @@ function init() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  renderer.toneMappingExposure = 1.3;  // slightly lifted for panel/dust readability
   container.appendChild(renderer.domElement);
 
   // ── Orbit Controls ─────────────────────────────────────────────────────────
@@ -104,17 +106,27 @@ function init() {
   controls.autoRotateSpeed = 0.3;
   controls.enablePan = false;
 
-  // ── Lighting ───────────────────────────────────────────────────────────────
-  const ambient = new THREE.AmbientLight(0x111122, 0.25);
+  // ── Lighting — cinematic 3-point NASA-style setup ─────────────────────────
+  //
+  // 1. AMBIENT FILL  — very dim bluish lunar bounce, prevents crushed blacks
+  const ambient = new THREE.AmbientLight(0x1a2540, 0.55);
   scene.add(ambient);
 
-  const sunLight = new THREE.DirectionalLight(0xfff5e0, 2.2);
-  sunLight.position.set(5, 2, 3);
+  // 2. KEY LIGHT — strong warm directional, simulates direct solar illumination
+  //    Upper-right-front; creates hard highlights on rover edges & panel surfaces
+  const sunLight = new THREE.DirectionalLight(0xfff2d6, 3.6);
+  sunLight.position.set(4, 3, 2);
   scene.add(sunLight);
 
-  const fillLight = new THREE.DirectionalLight(0x203060, 0.18);
-  fillLight.position.set(-4, -1, -3);
-  scene.add(fillLight);
+  // 3. RIM LIGHT — cool blue from rear-left-back, separates rover from terrain
+  const rimLight = new THREE.DirectionalLight(0x4d79ff, 0.55);
+  rimLight.position.set(-3, 1.5, -4);
+  scene.add(rimLight);
+
+  // 4. SURFACE HEMISPHERE — only active when surfaceGroup is visible;
+  //    provides gentle sky/ground bounce so no face is fully black under ACES
+  const hemiLight = new THREE.HemisphereLight(0x223355, 0x0d0d0f, 0.4);
+  scene.add(hemiLight);
 
   // ── Moon Globe ─────────────────────────────────────────────────────────────
   buildMoon();
@@ -355,12 +367,15 @@ function _buildFallbackTerrain() {
 
 // ─── Dust Panel Detection (hierarchy-based) ───────────────────────────────────
 // Traverses the rover GLB hierarchy and targets any mesh whose parent Object3D
-// name contains "panels". This replaces all prior color-detection fallback logic.
+// name contains "panels". Builds a MeshSurfaceSampler for each panel so dust
+// can be placed directly on the actual triangulated surface geometry.
 function detectDustPanels(root) {
-  dustSystem.panelMeshes  = [];
-  dustSystem.panelBoxes   = [];
+  dustSystem.panelMeshes   = [];
+  dustSystem.panelBoxes    = [];
   dustSystem.panelSurfaces = [];
-  dustSystem.stuckCounts  = [];
+  dustSystem.panelSamplers = [];
+  dustSystem.panelMatrices = [];
+  dustSystem.stuckCounts   = [];
 
   root.updateMatrixWorld(true);
 
@@ -368,15 +383,26 @@ function detectDustPanels(root) {
     const parentName = child.parent?.name?.toLowerCase() || '';
     if (child.isMesh && parentName.includes('panels')) {
       child.updateWorldMatrix(true, false);
+
+      // World-space bounding box — still used by EDS edge-ejection
       const box = new THREE.Box3().setFromObject(child);
 
       console.log('SOLAR PANEL DETECTED:', child.name);
-      console.log('  Box3 min:', box.min);
-      console.log('  Box3 max:', box.max);
+      console.log('  Box3 min:', box.min, '  max:', box.max);
+
+      // ── Build MeshSurfaceSampler for true surface placement ──────────────
+      let sampler = null;
+      try {
+        sampler = new THREE.MeshSurfaceSampler(child).build();
+      } catch (e) {
+        console.warn('MeshSurfaceSampler failed for', child.name, e);
+      }
 
       dustSystem.panelMeshes.push(child);
       dustSystem.panelBoxes.push(box);
-      dustSystem.panelSurfaces.push(box.max.y);
+      dustSystem.panelSurfaces.push(box.max.y);   // legacy Y for adhesion test
+      dustSystem.panelSamplers.push(sampler);      // may be null on error
+      dustSystem.panelMatrices.push(child.matrixWorld.clone());
       dustSystem.stuckCounts.push(0);
     }
   });
@@ -384,7 +410,7 @@ function detectDustPanels(root) {
   const n = dustSystem.panelMeshes.length;
   if (n > 0) {
     dustSystem.usingFallback = false;
-    writeLog(`[DustShield] Detected ${n} solar panel mesh(es) via rover hierarchy. Targeting for dust simulation.`, 'success');
+    writeLog(`[DustShield] Detected ${n} panel mesh(es). Surface samplers built — true regolith placement active.`, 'success');
   } else {
     writeLog('[DustShield] No panel meshes found in rover hierarchy. Check GLB node names.', 'warning');
   }
@@ -396,7 +422,7 @@ function detectDustPanels(root) {
 // Real particles are built after rover load + detectDustPanels() completes.
 function buildDustParticles() {}
 
-// ─── Particle Pool Builder (targeting detected panel surfaces) ────────────────
+// ─── Particle Pool Builder (true surface placement via MeshSurfaceSampler) ────
 function rebuildParticlesForPanels() {
   particles.length = 0;
   if (dustPoints) {
@@ -405,48 +431,72 @@ function rebuildParticlesForPanels() {
     dustPoints = null;
   }
 
-  const panelCount = dustSystem.panelBoxes.length;
+  const panelCount = dustSystem.panelSamplers.length;
   if (panelCount === 0) return;
 
   const count = MAX_PARTICLES;
   const positions = new Float32Array(count * 3);
   const colors    = new Float32Array(count * 3);
 
+  // Scratch vectors (reused per particle — avoids GC pressure)
+  const tempPos    = new THREE.Vector3();
+  const tempNormal = new THREE.Vector3();
+
   for (let i = 0; i < count; i++) {
-    const pIdx = Math.floor(Math.random() * panelCount);
-    const box  = dustSystem.panelBoxes[pIdx];
-    const surfY = dustSystem.panelSurfaces[pIdx];
+    // Randomly choose a panel, fall back to box-centre if sampler is unavailable
+    const pIdx    = Math.floor(Math.random() * panelCount);
+    const sampler = dustSystem.panelSamplers[pIdx];
+    const matrix  = dustSystem.panelMatrices[pIdx];
 
-    // Irregular scatter: bias spawn toward random sub-clusters within the panel
-    // to avoid a uniform rectangle fill.
-    const clusterU = Math.random();
-    const clusterV = Math.random();
-    const jitterU  = (Math.random() - 0.5) * 0.35;
-    const jitterV  = (Math.random() - 0.5) * 0.35;
-    const u = Math.max(0, Math.min(1, clusterU + jitterU));
-    const v = Math.max(0, Math.min(1, clusterV + jitterV));
+    let px, py, pz;
+    // Reset normal to up-axis default; overwritten below if sampler succeeds
+    tempNormal.set(0, 1, 0);
 
-    const px = box.min.x + u * (box.max.x - box.min.x);
-    const pz = box.min.z + v * (box.max.z - box.min.z);
-    const py = surfY + 0.0005 + Math.random() * 0.0008;
+    if (sampler) {
+      // ── True surface sample in local mesh space ──────────────────────────
+      sampler.sample(tempPos, tempNormal);
+
+      // Transform position to world space
+      tempPos.applyMatrix4(matrix);
+
+      // Transform normal to world space (normalMatrix equivalent)
+      tempNormal.transformDirection(matrix).normalize();
+
+      // Offset slightly along world-space normal to prevent z-fighting
+      tempPos.addScaledVector(tempNormal, 0.001);
+
+      px = tempPos.x;
+      py = tempPos.y;
+      pz = tempPos.z;
+    } else {
+      // Fallback: box top-plane placement if sampler construction failed
+      const box   = dustSystem.panelBoxes[pIdx];
+      const surfY = dustSystem.panelSurfaces[pIdx];
+      px = box.min.x + Math.random() * (box.max.x - box.min.x);
+      pz = box.min.z + Math.random() * (box.max.z - box.min.z);
+      py = surfY + 0.001;
+    }
 
     positions[i * 3]     = px;
     positions[i * 3 + 1] = py;
     positions[i * 3 + 2] = pz;
 
-    // Colour: warm grey-beige regolith tones with subtle variation
+    // Colour: warm grey-beige regolith tones with natural variation
     const t = Math.random();
-    colors[i * 3]     = 0.72 + t * 0.10;  // R
-    colors[i * 3 + 1] = 0.68 + t * 0.08;  // G
-    colors[i * 3 + 2] = 0.58 + t * 0.06;  // B
+    const bright = 0.68 + t * 0.14;
+    colors[i * 3]     = bright + 0.04;           // R — slightly warmer
+    colors[i * 3 + 1] = bright;
+    colors[i * 3 + 2] = bright - 0.10 - t * 0.04; // B — cooler, more grey-brown
 
     particles.push({
       x: px, y: py, z: pz,
       vx: 0, vy: 0, vz: 0,
+      // Store the surface normal so EDS can apply along-normal lift
+      nx: tempNormal.x, ny: tempNormal.y, nz: tempNormal.z,
       stuck: true,
       panelIdx: pIdx,
       active: true,
-      sizeClass: Math.random() < 0.15 ? 'large' : (Math.random() < 0.5 ? 'medium' : 'small')
+      sizeClass: Math.random() < 0.12 ? 'large' : (Math.random() < 0.45 ? 'medium' : 'small')
     });
 
     dustSystem.stuckCounts[pIdx] = (dustSystem.stuckCounts[pIdx] || 0) + 1;
@@ -459,44 +509,43 @@ function rebuildParticlesForPanels() {
   geo.setAttribute('color', dustColorsAttr);
 
   dustMaterial = new THREE.PointsMaterial({
-    size: 0.006,
+    size: 0.003,             // smaller = sharper regolith grain look
     map: createDustTexture(),
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.98,
     depthWrite: false,
     vertexColors: true,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,  // opaque adherence, not additive glow
     sizeAttenuation: true,
   });
 
   dustPoints = new THREE.Points(geo, dustMaterial);
   surfaceGroup.add(dustPoints);
 
-  writeLog(`[DustShield] ${count} regolith particles initialised on ${panelCount} panel surface(s).`, 'info');
+  writeLog(`[DustShield] ${count} regolith grains placed on ${panelCount} panel surface(s) via MeshSurfaceSampler.`, 'info');
 }
 
-// Crisp hard-edged grain texture — resembles a microscopic regolith speck.
-// No soft gradient / fog falloff.
+// Grain sprite: hard disc core with a warm specular micro-halo so particles
+// catch the key light and remain legible against dark solar panel surfaces.
 function createDustTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 16;
-  canvas.height = 16;
+  canvas.width  = 32;
+  canvas.height = 32;
   const ctx = canvas.getContext('2d');
+  const cx = 16, cy = 16;
+  ctx.clearRect(0, 0, 32, 32);
 
-  // Hard circular core with a razor-thin anti-alias ring
-  const cx = 8, cy = 8;
-  ctx.clearRect(0, 0, 16, 16);
-
-  // Outer anti-alias halo (very thin, radius 6)
-  const halo = ctx.createRadialGradient(cx, cy, 4.5, cx, cy, 6.5);
-  halo.addColorStop(0.0, 'rgba(255,255,255,0.18)');
-  halo.addColorStop(1.0, 'rgba(255,255,255,0.00)');
+  // Warm specular halo — catches key light, keeps particles visible in shadow
+  const halo = ctx.createRadialGradient(cx, cy, 5, cx, cy, 15);
+  halo.addColorStop(0.0, 'rgba(255, 240, 200, 0.22)');
+  halo.addColorStop(0.6, 'rgba(220, 200, 160, 0.07)');
+  halo.addColorStop(1.0, 'rgba(0,   0,   0,   0.00)');
   ctx.fillStyle = halo;
-  ctx.fillRect(0, 0, 16, 16);
+  ctx.fillRect(0, 0, 32, 32);
 
-  // Crisp filled disc core
+  // Hard crisp disc core — the actual grain body
   ctx.beginPath();
-  ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 5.5, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
   ctx.fill();
 
@@ -523,13 +572,34 @@ function loadRover() {
       roverMesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
       roverMesh.position.set(0, -0.2, 0);
 
-      // ── Material quality pass ────────────────────────────────────────────
+      // ── Material quality pass — cinematic readability ───────────────────
       roverMesh.traverse((child) => {
         if (child.isMesh) {
-          child.castShadow = false;
+          child.castShadow    = false;
           child.receiveShadow = false;
           if (child.material) {
-            child.material.roughness = Math.max(child.material.roughness, 0.35);
+            // Tighten roughness floor: very smooth ↔ very rough both readable
+            child.material.roughness = Math.max(
+              Math.min(child.material.roughness ?? 0.5, 0.82), 0.28
+            );
+            // Boost very dark albedos so they catch the key light
+            if (child.material.color) {
+              const c = child.material.color;
+              const luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+              if (luma < 0.04) {
+                // Near-black → lift to readable dark grey, keeping the hue
+                child.material.color.multiplyScalar(4.5);
+              }
+            }
+            // Solar panel meshes: tiny emissive so they never vanish in shadow
+            const pName = (child.parent?.name || '').toLowerCase();
+            if (pName.includes('panels')) {
+              child.material.emissive      = child.material.emissive || new THREE.Color(0x000000);
+              child.material.emissiveIntensity = 0.06;
+              // Very slight teal emissive — looks like residual photovoltaic glow
+              child.material.emissive.setRGB(0.0, 0.04, 0.06);
+              child.material.needsUpdate = true;
+            }
           }
         }
       });
@@ -819,17 +889,30 @@ function simulateMicrocontrollerSignals() {
 function resetDust() {
   if (!dustPositionsAttr) return;
   const posArr = dustPositionsAttr.array;
-  const panelCount = dustSystem.panelBoxes.length;
+  const panelCount = dustSystem.panelSamplers.length;
 
   for (let pi = 0; pi < panelCount; pi++) dustSystem.stuckCounts[pi] = 0;
 
+  const tempPos    = new THREE.Vector3();
+  const tempNormal = new THREE.Vector3();
+
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
-    const pIdx = Math.floor(Math.random() * Math.max(1, panelCount));
-    const box = panelCount > 0 ? dustSystem.panelBoxes[pIdx] : null;
+    const pIdx   = Math.floor(Math.random() * Math.max(1, panelCount));
+    const sampler = panelCount > 0 ? dustSystem.panelSamplers[pIdx] : null;
+    const matrix  = panelCount > 0 ? dustSystem.panelMatrices[pIdx] : null;
 
-    let px, pz, py;
-    if (box) {
+    let px, py, pz, nx = 0, ny = 1, nz = 0;
+
+    if (sampler) {
+      sampler.sample(tempPos, tempNormal);
+      tempPos.applyMatrix4(matrix);
+      tempNormal.transformDirection(matrix).normalize();
+      tempPos.addScaledVector(tempNormal, 0.001);
+      px = tempPos.x; py = tempPos.y; pz = tempPos.z;
+      nx = tempNormal.x; ny = tempNormal.y; nz = tempNormal.z;
+    } else if (panelCount > 0) {
+      const box = dustSystem.panelBoxes[pIdx];
       px = box.min.x + Math.random() * (box.max.x - box.min.x);
       pz = box.min.z + Math.random() * (box.max.z - box.min.z);
       py = dustSystem.panelSurfaces[pIdx] + 0.001;
@@ -840,6 +923,7 @@ function resetDust() {
     }
 
     p.x = px; p.y = py; p.z = pz;
+    p.nx = nx; p.ny = ny; p.nz = nz;
     p.vx = 0; p.vy = 0; p.vz = 0;
     p.stuck = true;
     p.active = true;
@@ -888,9 +972,9 @@ function updateDustSimulation(deltaTime, elapsed) {
   const baseSpeed = (state.voltage / 2000.0) * phaseMultiplier * 0.06;
   const freqHz = state.frequency;
 
-  const posArr = dustPositionsAttr.array;
+  const posArr     = dustPositionsAttr.array;
   const panelCount = dustSystem.panelBoxes.length;
-  const count = particles.length;
+  const count      = particles.length;
 
   // Reset stuck counts for re-tally each frame
   for (let pi = 0; pi < panelCount; pi++) dustSystem.stuckCounts[pi] = 0;
@@ -921,15 +1005,24 @@ function updateDustSimulation(deltaTime, elapsed) {
         if (box && (p.x < box.min.x - 0.01 || p.x > box.max.x + 0.01 ||
                     p.z < box.min.z - 0.01 || p.z > box.max.z + 0.01)) {
           p.stuck = false;
+          // Launch along the surface normal + lateral EDS sweep direction
           p.vx = dir * Math.max(0.05, speed * 2.2);
           p.vy = 0.015 + Math.random() * 0.02;
           p.vz = (Math.random() - 0.5) * 0.025;
           dustSystem.stuckCounts[p.panelIdx] = Math.max(0, (dustSystem.stuckCounts[p.panelIdx] || 1) - 1);
         }
       } else {
-        // Micro-Brownian motion while settled
-        p.x += (Math.random() - 0.5) * 0.0003;
-        p.z += (Math.random() - 0.5) * 0.0003;
+        // Micro-Brownian motion while settled — move along the surface plane
+        // (displace tangentially rather than world-axis, stays on tilted panels)
+        const nx = p.nx || 0, ny = p.ny || 1, nz = p.nz || 0;
+        // Build a simple tangent from normal
+        const tx = ny; const tz = -nx; // rough tangent in XZ plane
+        const jitter = 0.00025;
+        p.x += (tx * (Math.random() - 0.5) + (Math.random() - 0.5)) * jitter;
+        p.z += (tz * (Math.random() - 0.5) + (Math.random() - 0.5)) * jitter;
+        // Y follows from normal: re-project onto panel surface (approximate)
+        p.y += ny * (Math.random() - 0.5) * jitter * 0.3;
+        // Clamp to box bounds to prevent drift off panel
         const box = dustSystem.panelBoxes[p.panelIdx];
         if (box) {
           p.x = Math.max(box.min.x, Math.min(box.max.x, p.x));
@@ -946,16 +1039,19 @@ function updateDustSimulation(deltaTime, elapsed) {
       p.y += p.vy * deltaTime;
       p.z += p.vz * deltaTime;
 
-      // Check adhesion against all panel surfaces
+      // Check adhesion: when a falling particle re-enters a panel bounding box
+      // snap it to the box surface (approximate — the exact surface is unavailable
+      // for flying particles without a full raycast, so surfY is still used here).
       for (let pi = 0; pi < panelCount; pi++) {
-        const box = dustSystem.panelBoxes[pi];
+        const box   = dustSystem.panelBoxes[pi];
         const surfY = dustSystem.panelSurfaces[pi];
         if (!box) continue;
-        if (p.y <= surfY + 0.008 &&
+        if (p.y <= surfY + 0.012 &&
             p.x >= box.min.x && p.x <= box.max.x &&
             p.z >= box.min.z && p.z <= box.max.z) {
           p.stuck = true;
-          p.y = surfY + 0.001;
+          p.y  = surfY + 0.001;
+          p.nx = 0; p.ny = 1; p.nz = 0;  // approximate normal for landed particle
           p.vx = 0; p.vy = 0; p.vz = 0;
           p.panelIdx = pi;
           dustSystem.stuckCounts[pi]++;
