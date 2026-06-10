@@ -39,6 +39,20 @@ let roverLoaded = false;
 const totalParticles = 180;
 const particles = [];
 let dustPositionsAttr, dustColorsAttr;
+let dustMaterial;
+
+const MAX_PARTICLES = 1200;
+const LUNAR_GRAVITY = -1.62 * 0.3;
+
+const dustSystem = {
+  panelMeshes: [],
+  panelBoxes: [],
+  panelSurfaces: [],
+  panelOverlays: [],
+  stuckCounts: [],
+  maxPerPanel: 600,
+  usingFallback: false
+};
 
 // ─── DOM References ─────────────────────────────────────────────────────────
 let elSliderVoltage, elDisplayVoltage;
@@ -115,7 +129,7 @@ function init() {
   surfaceGroup.visible = false;
   scene.add(surfaceGroup);
 
-  buildLocalTerrain();
+  loadLunarTerrain();
   buildSolarPanel();
   buildDustParticles();
   loadRover();
@@ -165,7 +179,7 @@ function buildMoon() {
 
 // ─── Procedural Star Field ────────────────────────────────────────────────────
 function buildStars() {
-  const starCount = 6000;
+  const starCount = 8000;
   const positions = new Float32Array(starCount * 3);
   const sizes = new Float32Array(starCount);
   const alphas = new Float32Array(starCount);
@@ -228,39 +242,120 @@ function buildStars() {
   scene.add(starField);
 }
 
-// ─── Local Moon Terrain (Surface Mode) ───────────────────────────────────────
-function buildLocalTerrain() {
-  const geo = new THREE.PlaneGeometry(12, 12, 64, 64);
-  geo.rotateX(-Math.PI / 2);
 
+// ─── Lunar Terrain Loader (GLB Asset) ────────────────────────────────────────
+// Loads assets/nasa/lunar_surface.glb and scales it to fit the surface camera
+// viewport (maxDistance ≈ 1.6 units). A clipping plane removes geometry beyond
+// the visible radius so the GPU never processes unseen terrain.
+function loadLunarTerrain() {
+  const loader = new THREE.GLTFLoader();
+  writeLog('Loading lunar surface terrain (lunar_surface.glb)...', 'info');
+
+  loader.load(
+    'assets/nasa/lunar_surface.glb',
+    (gltf) => {
+      const terrainRoot = gltf.scene;
+
+      // ── Measure the raw asset bounds ──────────────────────────────────────
+      const box = new THREE.Box3().setFromObject(terrainRoot);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+
+      // We want the terrain to fill roughly the surface camera's max view
+      // distance. The camera maxDistance is 1.6 units; we target a diameter of
+      // ~4 units so the terrain always extends slightly beyond the viewport.
+      const TARGET_DIAMETER = 4.0;
+      const rawMaxXZ = Math.max(size.x, size.z) || 1;
+      const scaleFactor = TARGET_DIAMETER / rawMaxXZ;
+
+      terrainRoot.scale.setScalar(scaleFactor);
+
+      // Re-compute bounds after scaling and centre the mesh at world origin
+      terrainRoot.updateMatrixWorld(true);
+      const scaledBox = new THREE.Box3().setFromObject(terrainRoot);
+      const centre = new THREE.Vector3();
+      scaledBox.getCenter(centre);
+
+      // Shift so the terrain surface sits at y = -0.2 (rover / panel base)
+      const scaledFloor = scaledBox.min.y;
+      terrainRoot.position.set(
+        -centre.x,
+        -scaledFloor - 0.2,
+        -centre.z
+      );
+
+      // ── Apply material tweaks for lunar look ──────────────────────────────
+      terrainRoot.traverse((child) => {
+        if (!child.isMesh) return;
+        child.receiveShadow = false;
+        child.castShadow   = false;
+
+        // Ensure every mesh has at least a Standard material so lighting works
+        if (!child.material || child.material.isMeshBasicMaterial) {
+          child.material = new THREE.MeshStandardMaterial({
+            color:     0x2a2b2e,
+            roughness: 0.95,
+            metalness: 0.02,
+          });
+        } else {
+          // Darken to lunar grey if the asset's albedo is very bright
+          if (child.material.color) {
+            const c = child.material.color;
+            const luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+            if (luma > 0.55) child.material.color.multiplyScalar(0.45);
+          }
+          child.material.roughness = Math.max(child.material.roughness ?? 0, 0.85);
+          child.material.metalness = Math.min(child.material.metalness ?? 0, 0.05);
+        }
+
+        // Clip geometry beyond a radius of 2.2 units from the scene centre
+        // so we don't render terrain the camera can never see.
+        renderer.clippingPlanes = [];
+        child.material.clippingPlanes = [
+          new THREE.Plane(new THREE.Vector3( 1,  0,  0), 2.2),
+          new THREE.Plane(new THREE.Vector3(-1,  0,  0), 2.2),
+          new THREE.Plane(new THREE.Vector3( 0,  0,  1), 2.2),
+          new THREE.Plane(new THREE.Vector3( 0,  0, -1), 2.2),
+        ];
+        child.material.clipIntersection = false;
+        child.material.needsUpdate = true;
+      });
+
+      // Enable clipping on the renderer
+      renderer.localClippingEnabled = true;
+
+      groundMesh = terrainRoot;
+      surfaceGroup.add(terrainRoot);
+
+      writeLog('Lunar surface terrain loaded from GLB asset.', 'success');
+    },
+    undefined,
+    (err) => {
+      writeLog('lunar_surface.glb failed to load — using minimal fallback plane.', 'warning');
+      _buildFallbackTerrain();
+    }
+  );
+}
+
+// ─── Minimal Fallback Terrain (if GLB load fails) ────────────────────────────
+function _buildFallbackTerrain() {
+  const geo = new THREE.PlaneGeometry(4, 4, 48, 48);
+  geo.rotateX(-Math.PI / 2);
   const posAttr = geo.attributes.position;
   for (let i = 0; i < posAttr.count; i++) {
     const x = posAttr.getX(i);
     const z = posAttr.getZ(i);
-    
-    let height = Math.sin(x * 1.5) * Math.cos(z * 1.5) * 0.04;
-    height += (Math.random() - 0.5) * 0.015;
-    
-    const craterDist = Math.sqrt(Math.pow(x - 2, 2) + Math.pow(z + 1, 2));
-    if (craterDist < 1.5) {
-      height += -0.06 * Math.cos((craterDist / 1.5) * Math.PI * 0.5);
-    }
-    
-    posAttr.setY(i, -0.2 + height);
+    let h = Math.sin(x * 1.5) * Math.cos(z * 1.5) * 0.04;
+    h += (Math.random() - 0.5) * 0.015;
+    posAttr.setY(i, -0.2 + h);
   }
   geo.computeVertexNormals();
-
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0x242528,
-    roughness: 0.95,
-    metalness: 0.02
-  });
-
+  const mat = new THREE.MeshStandardMaterial({ color: 0x242528, roughness: 0.95, metalness: 0.02 });
   groundMesh = new THREE.Mesh(geo, mat);
   surfaceGroup.add(groundMesh);
 }
 
-// ─── Procedural Solar Panel with canvas-based electrodes texture ──────────────
+
 function buildSolarPanel() {
   const panelTex = createSolarPanelTexture();
   
@@ -347,60 +442,154 @@ function createSolarPanelTexture() {
   return tex;
 }
 
-// ─── Dust Particles Generator ───────────────────────────────────────────────
+// ─── Blue Solar Panel Detection ──────────────────────────────────────────────
+function isBluePanel(material) {
+  if (!material) return false;
+  const mats = Array.isArray(material) ? material : [material];
+  for (const mat of mats) {
+    const c = mat.color;
+    if (!c) continue;
+    if (c.b > c.r * 1.2 && c.b > c.g * 1.2 && c.b > 0.15) return true;
+  }
+  return false;
+}
+
+function detectBluePanels(root) {
+  dustSystem.panelMeshes = [];
+  dustSystem.panelBoxes = [];
+  dustSystem.panelSurfaces = [];
+  dustSystem.stuckCounts = [];
+
+  root.traverse((child) => {
+    if (child.isMesh && isBluePanel(child.material)) {
+      child.updateWorldMatrix(true, false);
+      const box = new THREE.Box3().setFromObject(child);
+      dustSystem.panelMeshes.push(child);
+      dustSystem.panelBoxes.push(box);
+      dustSystem.panelSurfaces.push(box.max.y);
+      dustSystem.stuckCounts.push(0);
+    }
+  });
+
+  const n = dustSystem.panelMeshes.length;
+  if (n > 0) {
+    writeLog(`[DustShield] Detected ${n} blue solar panel(s) on rover. Targeting for dust simulation.`, 'success');
+    dustSystem.usingFallback = false;
+    dustSystem.panelBoxes.forEach((box, idx) => buildDustOverlay(box, idx));
+  } else {
+    writeLog('[DustShield] No blue panels on rover — using procedural panel fallback.', 'warning');
+    dustSystem.usingFallback = true;
+    if (solarPanelMesh) {
+      solarPanelMesh.updateWorldMatrix(true, false);
+      const box = new THREE.Box3().setFromObject(solarPanelMesh);
+      dustSystem.panelMeshes.push(solarPanelMesh);
+      dustSystem.panelBoxes.push(box);
+      dustSystem.panelSurfaces.push(box.max.y);
+      dustSystem.stuckCounts.push(0);
+      buildDustOverlay(box, 0);
+    }
+  }
+
+  rebuildParticlesForPanels();
+}
+
+// ─── Dust Particles Generator (No-op placeholder, handled by buildDustOverlay/rebuildParticlesForPanels) ──
 function buildDustParticles() {
-  const count = totalParticles;
+  // Real particles are built after panel detection in detectBluePanels
+}
+
+// ─── Dust Overlay Per Panel ───────────────────────────────────────────────────
+function buildDustOverlay(box, idx) {
+  const sizeX = Math.max(box.max.x - box.min.x, 0.05);
+  const sizeZ = Math.max(box.max.z - box.min.z, 0.05);
+  const centerX = (box.min.x + box.max.x) / 2;
+  const centerZ = (box.min.z + box.max.z) / 2;
+  const surfaceY = box.max.y + 0.003;
+
+  const geo = new THREE.PlaneGeometry(sizeX, sizeZ);
+  geo.rotateX(-Math.PI / 2);
+
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x9e8a72,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+
+  const overlay = new THREE.Mesh(geo, mat);
+  overlay.position.set(centerX, surfaceY, centerZ);
+  surfaceGroup.add(overlay);
+  dustSystem.panelOverlays[idx] = overlay;
+}
+
+// ─── Particle Pool Builder (targeting detected panel surfaces) ────────────────
+function rebuildParticlesForPanels() {
+  particles.length = 0;
+  if (dustPoints) {
+    surfaceGroup.remove(dustPoints);
+    dustPoints.geometry.dispose();
+    dustPoints = null;
+  }
+
+  const panelCount = dustSystem.panelBoxes.length;
+  if (panelCount === 0) return;
+
+  const count = MAX_PARTICLES;
   const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
+  const colors    = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
-    const px = (Math.random() - 0.5) * 0.47;
-    const pz = (Math.random() - 0.5) * 0.37;
-    const py = 0.171 + Math.random() * 0.003;
+    const pIdx = Math.floor(Math.random() * panelCount);
+    const box  = dustSystem.panelBoxes[pIdx];
+    const surfY = dustSystem.panelSurfaces[pIdx];
 
-    positions[i * 3] = px;
+    const px = box.min.x + Math.random() * (box.max.x - box.min.x);
+    const pz = box.min.z + Math.random() * (box.max.z - box.min.z);
+    const py = surfY + 0.001 + Math.random() * 0.002;
+
+    positions[i * 3]     = px;
     positions[i * 3 + 1] = py;
     positions[i * 3 + 2] = pz;
 
-    const isBrown = Math.random() < 0.25;
-    const r = isBrown ? (0.64 + Math.random() * 0.1) : (0.75 + Math.random() * 0.1);
-    const g = isBrown ? (0.54 + Math.random() * 0.08) : (0.75 + Math.random() * 0.1);
-    const b = isBrown ? (0.44 + Math.random() * 0.08) : (0.75 + Math.random() * 0.1);
-
-    colors[i * 3] = r;
-    colors[i * 3 + 1] = g;
-    colors[i * 3 + 2] = b;
+    const t = Math.random();
+    colors[i * 3]     = 0.54 + t * 0.12;
+    colors[i * 3 + 1] = 0.50 + t * 0.10;
+    colors[i * 3 + 2] = 0.40 + t * 0.08;
 
     particles.push({
-      x: px,
-      y: py,
-      z: pz,
-      vx: 0,
-      vy: 0,
-      vz: 0,
+      x: px, y: py, z: pz,
+      vx: 0, vy: 0, vz: 0,
+      stuck: true,
+      panelIdx: pIdx,
       active: true,
-      isFlying: false,
       sizeClass: Math.random() < 0.15 ? 'large' : (Math.random() < 0.5 ? 'medium' : 'small')
     });
+
+    dustSystem.stuckCounts[pIdx] = (dustSystem.stuckCounts[pIdx] || 0) + 1;
   }
 
   const geo = new THREE.BufferGeometry();
   dustPositionsAttr = new THREE.BufferAttribute(positions, 3);
-  dustColorsAttr = new THREE.BufferAttribute(colors, 3);
+  dustColorsAttr    = new THREE.BufferAttribute(colors, 3);
   geo.setAttribute('position', dustPositionsAttr);
   geo.setAttribute('color', dustColorsAttr);
 
-  const dustMat = new THREE.PointsMaterial({
-    size: 0.016,
+  dustMaterial = new THREE.PointsMaterial({
+    size: 0.008,
     map: createDustTexture(),
     transparent: true,
+    opacity: 0.85,
     depthWrite: false,
     vertexColors: true,
-    blending: THREE.NormalBlending
+    blending: THREE.NormalBlending,
   });
 
-  dustPoints = new THREE.Points(geo, dustMat);
+  dustPoints = new THREE.Points(geo, dustMaterial);
   surfaceGroup.add(dustPoints);
+
+  updateOverlayOpacities();
+  writeLog(`[DustShield] ${count} dust particles initialised on ${panelCount} panel surface(s).`, 'info');
 }
 
 function createDustTexture() {
@@ -421,7 +610,7 @@ function createDustTexture() {
   return new THREE.CanvasTexture(canvas);
 }
 
-// ─── Rover 3D Loader & Fallback Builder ─────────────────────────────────────
+// ─── Rover 3D Loader & Fallback Builder ──────────────────────────────────────
 function loadRover() {
   const loader = new THREE.GLTFLoader();
   isRoverLoading = true;
@@ -456,12 +645,17 @@ function loadRover() {
       isRoverLoading = false;
       roverLoaded = true;
       writeLog('Rover 3D model loaded successfully.', 'success');
+
+      // Detect blue solar panels now that rover is in scene with valid world matrices
+      detectBluePanels(roverMesh);
     },
     undefined,
     (err) => {
       isRoverLoading = false;
-      writeLog('Rover model load failed. Constructing high-fidelity fallback.', 'warning');
+      writeLog('Rover model load failed. Constructing procedural fallback.', 'warning');
       buildProceduralRover();
+      // Use the procedural solar panel as the fallback dust target
+      detectBluePanels(surfaceGroup);
     }
   );
 }
@@ -604,9 +798,6 @@ function bindUIEvents() {
   elHardwareStatusText = document.getElementById('hardware-status-text');
 
   elBtnReturnOrbit = document.getElementById('btn-return-orbit');
-  if (elBtnReturnOrbit) {
-    elBtnReturnOrbit.addEventListener('click', () => initiateAscent());
-  }
   elDescentHud = document.getElementById('descent-hud');
   elHudCoords = document.getElementById('hud-coords');
   elHudStatus = document.getElementById('hud-status');
@@ -703,6 +894,12 @@ function bindUIEvents() {
       }
     });
   }
+
+  if (elBtnReturnOrbit) {
+    elBtnReturnOrbit.addEventListener('click', () => {
+      initiateAscent();
+    });
+  }
 }
 
 // ─── Microcontroller Mock UART Signals ──────────────────────────────────────
@@ -723,32 +920,54 @@ function simulateMicrocontrollerSignals() {
   }, 4000);
 }
 
+// ─── Overlay Opacity Updater ─────────────────────────────────────────────────
+function updateOverlayOpacities() {
+  dustSystem.panelOverlays.forEach((overlay, idx) => {
+    if (!overlay) return;
+    const ratio = Math.min(1, (dustSystem.stuckCounts[idx] || 0) / dustSystem.maxPerPanel);
+    overlay.material.opacity = ratio * 0.78;
+  });
+}
+
 // ─── Dust Re-deposition (Reset) ──────────────────────────────────────────────
 function resetDust() {
-  const count = totalParticles;
+  if (!dustPositionsAttr) return;
   const posArr = dustPositionsAttr.array;
+  const panelCount = dustSystem.panelBoxes.length;
 
-  for (let i = 0; i < count; i++) {
+  for (let pi = 0; pi < panelCount; pi++) dustSystem.stuckCounts[pi] = 0;
+
+  for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
-    const px = (Math.random() - 0.5) * 0.47;
-    const pz = (Math.random() - 0.5) * 0.37;
-    const py = 0.171 + Math.random() * 0.003;
+    const pIdx = Math.floor(Math.random() * Math.max(1, panelCount));
+    const box = panelCount > 0 ? dustSystem.panelBoxes[pIdx] : null;
 
-    p.x = px;
-    p.y = py;
-    p.z = pz;
-    p.vx = 0;
-    p.vy = 0;
-    p.vz = 0;
+    let px, pz, py;
+    if (box) {
+      px = box.min.x + Math.random() * (box.max.x - box.min.x);
+      pz = box.min.z + Math.random() * (box.max.z - box.min.z);
+      py = dustSystem.panelSurfaces[pIdx] + 0.001;
+    } else {
+      px = (Math.random() - 0.5) * 0.47;
+      pz = (Math.random() - 0.5) * 0.37;
+      py = 0.171;
+    }
+
+    p.x = px; p.y = py; p.z = pz;
+    p.vx = 0; p.vy = 0; p.vz = 0;
+    p.stuck = true;
     p.active = true;
-    p.isFlying = false;
+    p.panelIdx = pIdx;
 
-    posArr[i * 3] = px;
+    posArr[i * 3]     = px;
     posArr[i * 3 + 1] = py;
     posArr[i * 3 + 2] = pz;
+
+    if (panelCount > 0) dustSystem.stuckCounts[pIdx]++;
   }
 
   dustPositionsAttr.needsUpdate = true;
+  updateOverlayOpacities();
   
   state.dustCoverage = 100;
   state.solarEfficiency = 0;
@@ -776,79 +995,106 @@ function resetDust() {
   }
 }
 
-// ─── Dust Physics Updates ───────────────────────────────────────────────────
+// ─── Dust Physics Updates ────────────────────────────────────────────────────
 function updateDustSimulation(deltaTime, elapsed) {
-  const phaseMultiplier = state.phase === 3 ? 1.5 : 0.8;
-  const baseSpeed = (state.voltage / 2000.0) * phaseMultiplier * 0.07;
-  
-  const posArr = dustPositionsAttr.array;
-  let activeInBounds = 0;
+  if (!dustPositionsAttr || particles.length === 0) return;
 
-  for (let i = 0; i < totalParticles; i++) {
+  const phaseMultiplier = state.phase === 3 ? 1.5 : 0.8;
+  const baseSpeed = (state.voltage / 2000.0) * phaseMultiplier * 0.06;
+  const freqHz = state.frequency;
+
+  const posArr = dustPositionsAttr.array;
+  const panelCount = dustSystem.panelBoxes.length;
+  const count = particles.length;
+
+  // Reset stuck counts for re-tally each frame
+  for (let pi = 0; pi < panelCount; pi++) dustSystem.stuckCounts[pi] = 0;
+
+  for (let i = 0; i < count; i++) {
     const p = particles[i];
 
     if (!p.active) {
-      posArr[i * 3] = 9999;
-      posArr[i * 3 + 1] = 9999;
-      posArr[i * 3 + 2] = 9999;
+      posArr[i * 3] = 9999; posArr[i * 3 + 1] = 9999; posArr[i * 3 + 2] = 9999;
       continue;
     }
 
-    if (!p.isFlying) {
-      activeInBounds++;
+    if (p.stuck) {
+      // ── Particle adhered to panel surface ────────────────────────────────
+      dustSystem.stuckCounts[p.panelIdx] = (dustSystem.stuckCounts[p.panelIdx] || 0) + 1;
 
       if (state.edsActive) {
-        let sizeFactor = 0.8;
-        if (p.sizeClass === 'small') sizeFactor = 1.3;
-        if (p.sizeClass === 'large') sizeFactor = 0.4;
-
+        // AC traveling-wave force dislodges stuck particles
+        const sizeFactor = p.sizeClass === 'small' ? 1.4 : p.sizeClass === 'large' ? 0.35 : 0.85;
         const speed = baseSpeed * sizeFactor;
-        const moveDir = Math.sign(p.x);
-        const dir = moveDir === 0 ? (i % 2 === 0 ? 1 : -1) : moveDir;
+        const dir = Math.sign(p.x) || (i % 2 === 0 ? 1 : -1);
 
         p.x += dir * speed * deltaTime;
+        p.z += Math.sin(elapsed * freqHz * 0.35 + i * 0.7) * 0.0008 * (freqHz / 60);
 
-        const freqHz = state.frequency;
-        const jitterAmp = 0.001 * (freqHz / 60);
-        p.z += Math.sin(elapsed * freqHz * 0.4 + i) * jitterAmp;
-        p.y = 0.171 + Math.sin(elapsed * freqHz * 0.8 + i) * jitterAmp * 0.45;
-
-        if (Math.abs(p.x) >= 0.246) {
-          p.isFlying = true;
-          p.vx = dir * Math.max(0.06, speed * 2.5);
-          p.vy = 0.02 + Math.random() * 0.025;
-          p.vz = (Math.random() - 0.5) * 0.03;
+        // Check if swept off panel edge
+        const box = dustSystem.panelBoxes[p.panelIdx];
+        if (box && (p.x < box.min.x - 0.01 || p.x > box.max.x + 0.01 ||
+                    p.z < box.min.z - 0.01 || p.z > box.max.z + 0.01)) {
+          p.stuck = false;
+          p.vx = dir * Math.max(0.05, speed * 2.2);
+          p.vy = 0.015 + Math.random() * 0.02;
+          p.vz = (Math.random() - 0.5) * 0.025;
+          dustSystem.stuckCounts[p.panelIdx] = Math.max(0, (dustSystem.stuckCounts[p.panelIdx] || 1) - 1);
         }
       } else {
-        p.x += (Math.random() - 0.5) * 0.0006;
-        p.z += (Math.random() - 0.5) * 0.0006;
-        p.y = 0.171 + (Math.random() - 0.5) * 0.0002;
-        
-        p.x = Math.max(-0.24, Math.min(0.24, p.x));
-        p.z = Math.max(-0.19, Math.min(0.19, p.z));
+        // Micro-Brownian motion while settled
+        p.x += (Math.random() - 0.5) * 0.0003;
+        p.z += (Math.random() - 0.5) * 0.0003;
+        const box = dustSystem.panelBoxes[p.panelIdx];
+        if (box) {
+          p.x = Math.max(box.min.x, Math.min(box.max.x, p.x));
+          p.z = Math.max(box.min.z, Math.min(box.max.z, p.z));
+        }
       }
     } else {
-      p.vy -= 1.62 * 0.2 * deltaTime;
-      
+      // ── Particle airborne ─────────────────────────────────────────────────
+      p.vy += LUNAR_GRAVITY * deltaTime;
+      p.vx *= 0.995;
+      p.vz *= 0.995;
+
       p.x += p.vx * deltaTime;
       p.y += p.vy * deltaTime;
       p.z += p.vz * deltaTime;
 
-      if (p.y <= -0.19) {
-        p.active = false;
-        p.isFlying = false;
+      // Check adhesion against all panel surfaces
+      for (let pi = 0; pi < panelCount; pi++) {
+        const box = dustSystem.panelBoxes[pi];
+        const surfY = dustSystem.panelSurfaces[pi];
+        if (!box) continue;
+        if (p.y <= surfY + 0.008 &&
+            p.x >= box.min.x && p.x <= box.max.x &&
+            p.z >= box.min.z && p.z <= box.max.z) {
+          p.stuck = true;
+          p.y = surfY + 0.001;
+          p.vx = 0; p.vy = 0; p.vz = 0;
+          p.panelIdx = pi;
+          dustSystem.stuckCounts[pi]++;
+          break;
+        }
       }
+
+      if (p.y < -2.0) p.active = false;
     }
 
-    posArr[i * 3] = p.x;
+    posArr[i * 3]     = p.x;
     posArr[i * 3 + 1] = p.y;
     posArr[i * 3 + 2] = p.z;
   }
 
   dustPositionsAttr.needsUpdate = true;
+  updateOverlayOpacities();
 
-  const coverage = Math.round((activeInBounds / totalParticles) * 100);
-  const efficiency = Math.max(0, Math.round(100 - coverage * 1.2));
+  // Aggregate coverage
+  let totalStuck = 0;
+  for (let pi = 0; pi < panelCount; pi++) totalStuck += dustSystem.stuckCounts[pi] || 0;
+
+  const coverage   = Math.min(100, Math.round((totalStuck / count) * 100));
+  const efficiency = Math.max(0, 100 - coverage);
 
   if (state.dustCoverage !== coverage) {
     state.dustCoverage = coverage;
