@@ -51,6 +51,7 @@ const dustSystem = {
   panelSamplers: [],   // THREE.MeshSurfaceSampler per panel
   panelMatrices: [],   // cloned world Matrix4 at detect-time
   stuckCounts:   [],
+  initialCounts: [],   // initial particle counts per panel
   usingFallback: false
 };
 
@@ -127,6 +128,11 @@ function init() {
   //    provides gentle sky/ground bounce so no face is fully black under ACES
   const hemiLight = new THREE.HemisphereLight(0x223355, 0x0d0d0f, 0.4);
   scene.add(hemiLight);
+
+  // 5. PANEL GLINT LIGHT — grazing-angle directional light focusing on the solar panels
+  const panelLight = new THREE.DirectionalLight(0xffffff, 1.3);
+  panelLight.position.set(-2.2, 0.28, 1.2);
+  scene.add(panelLight);
 
   // ── Moon Globe ─────────────────────────────────────────────────────────────
   buildMoon();
@@ -376,6 +382,7 @@ function detectDustPanels(root) {
   dustSystem.panelSamplers = [];
   dustSystem.panelMatrices = [];
   dustSystem.stuckCounts   = [];
+  dustSystem.initialCounts = [];
 
   root.updateMatrixWorld(true);
 
@@ -389,6 +396,27 @@ function detectDustPanels(root) {
 
       console.log('SOLAR PANEL DETECTED:', child.name);
       console.log('  Box3 min:', box.min, '  max:', box.max);
+
+      // Convert panel material to high-quality MeshPhysicalMaterial
+      if (child.material) {
+        const oldMat = child.material;
+        const newMat = new THREE.MeshPhysicalMaterial({
+          color: new THREE.Color(0x0b1329), // Deep blue-black photovoltaic
+          roughness: 0.15,
+          metalness: 0.4, // Semiconductive photovoltaic reflectance
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.06,
+          reflectivity: 0.95,
+          emissive: new THREE.Color(0x000103),
+          emissiveIntensity: 0.1,
+          map: oldMat.map,
+          normalMap: oldMat.normalMap,
+          roughnessMap: oldMat.roughnessMap,
+          metalnessMap: oldMat.metalnessMap,
+        });
+        child.material = newMat;
+        child.material.needsUpdate = true;
+      }
 
       // ── Build MeshSurfaceSampler for true surface placement ──────────────
       let sampler = null;
@@ -404,6 +432,7 @@ function detectDustPanels(root) {
       dustSystem.panelSamplers.push(sampler);      // may be null on error
       dustSystem.panelMatrices.push(child.matrixWorld.clone());
       dustSystem.stuckCounts.push(0);
+      dustSystem.initialCounts.push(0);
     }
   });
 
@@ -434,6 +463,9 @@ function rebuildParticlesForPanels() {
   const panelCount = dustSystem.panelSamplers.length;
   if (panelCount === 0) return;
 
+  // Track initial allocation counts to calculate coverage ratio accurately
+  dustSystem.initialCounts = new Array(panelCount).fill(0);
+
   const count = MAX_PARTICLES;
   const positions = new Float32Array(count * 3);
   const colors    = new Float32Array(count * 3);
@@ -462,8 +494,8 @@ function rebuildParticlesForPanels() {
       // Transform normal to world space (normalMatrix equivalent)
       tempNormal.transformDirection(matrix).normalize();
 
-      // Offset slightly along world-space normal to prevent z-fighting
-      tempPos.addScaledVector(tempNormal, 0.001);
+      // Offset slightly along world-space normal to prevent z-fighting (lifted slightly)
+      tempPos.addScaledVector(tempNormal, 0.0022);
 
       px = tempPos.x;
       py = tempPos.y;
@@ -474,16 +506,16 @@ function rebuildParticlesForPanels() {
       const surfY = dustSystem.panelSurfaces[pIdx];
       px = box.min.x + Math.random() * (box.max.x - box.min.x);
       pz = box.min.z + Math.random() * (box.max.z - box.min.z);
-      py = surfY + 0.001;
+      py = surfY + 0.0022;
     }
 
     positions[i * 3]     = px;
     positions[i * 3 + 1] = py;
     positions[i * 3 + 2] = pz;
 
-    // Colour: warm grey-beige regolith tones with natural variation
+    // Colour: high contrast warm grey-beige regolith tones
     const t = Math.random();
-    const bright = 0.68 + t * 0.14;
+    const bright = 0.78 + t * 0.15;
     colors[i * 3]     = bright + 0.04;           // R — slightly warmer
     colors[i * 3 + 1] = bright;
     colors[i * 3 + 2] = bright - 0.10 - t * 0.04; // B — cooler, more grey-brown
@@ -500,6 +532,7 @@ function rebuildParticlesForPanels() {
     });
 
     dustSystem.stuckCounts[pIdx] = (dustSystem.stuckCounts[pIdx] || 0) + 1;
+    dustSystem.initialCounts[pIdx]++;
   }
 
   const geo = new THREE.BufferGeometry();
@@ -509,7 +542,7 @@ function rebuildParticlesForPanels() {
   geo.setAttribute('color', dustColorsAttr);
 
   dustMaterial = new THREE.PointsMaterial({
-    size: 0.003,             // smaller = sharper regolith grain look
+    size: 0.0048,             // slightly larger size for visible separation
     map: createDustTexture(),
     transparent: true,
     opacity: 0.98,
@@ -908,18 +941,18 @@ function resetDust() {
       sampler.sample(tempPos, tempNormal);
       tempPos.applyMatrix4(matrix);
       tempNormal.transformDirection(matrix).normalize();
-      tempPos.addScaledVector(tempNormal, 0.001);
+      tempPos.addScaledVector(tempNormal, 0.0022);
       px = tempPos.x; py = tempPos.y; pz = tempPos.z;
       nx = tempNormal.x; ny = tempNormal.y; nz = tempNormal.z;
     } else if (panelCount > 0) {
       const box = dustSystem.panelBoxes[pIdx];
       px = box.min.x + Math.random() * (box.max.x - box.min.x);
       pz = box.min.z + Math.random() * (box.max.z - box.min.z);
-      py = dustSystem.panelSurfaces[pIdx] + 0.001;
+      py = dustSystem.panelSurfaces[pIdx] + 0.0022;
     } else {
       px = (Math.random() - 0.5) * 0.47;
       pz = (Math.random() - 0.5) * 0.37;
-      py = 0.171;
+      py = 0.171 + 0.0022;
     }
 
     p.x = px; p.y = py; p.z = pz;
@@ -1068,6 +1101,30 @@ function updateDustSimulation(deltaTime, elapsed) {
   }
 
   dustPositionsAttr.needsUpdate = true;
+
+  // ── Dynamic Solar Panel Material Restoration ──────────────────────────────
+  for (let pi = 0; pi < panelCount; pi++) {
+    const mesh = dustSystem.panelMeshes[pi];
+    if (mesh && mesh.material) {
+      const initCount = dustSystem.initialCounts[pi] || 1;
+      const stuckCount = dustSystem.stuckCounts[pi] || 0;
+      const coverageRatio = Math.min(1.0, stuckCount / initCount);
+
+      // Interpolate properties: Clean (0.15 roughness, 0.4 metalness, 1.0 clearcoat)
+      // vs Dusty (0.82 roughness, 0.08 metalness, 0.0 clearcoat)
+      mesh.material.roughness = THREE.MathUtils.lerp(0.15, 0.82, coverageRatio);
+      mesh.material.metalness = THREE.MathUtils.lerp(0.4, 0.08, coverageRatio);
+      mesh.material.clearcoat = THREE.MathUtils.lerp(1.0, 0.0, coverageRatio);
+      mesh.material.clearcoatRoughness = THREE.MathUtils.lerp(0.06, 0.85, coverageRatio);
+
+      // Interpolate color: Deep blue-black clean panels vs dusty brown-grey panels
+      const cleanColor = new THREE.Color(0x0b1329);
+      const dustyColor = new THREE.Color(0x2b2927);
+      mesh.material.color.lerpColors(cleanColor, dustyColor, coverageRatio);
+
+      mesh.material.needsUpdate = true;
+    }
+  }
 
   // Aggregate coverage
   let totalStuck = 0;
