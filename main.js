@@ -36,12 +36,12 @@ let isRoverLoading = false;
 let roverLoaded = false;
 
 // ─── Dust Particle Physics Data ─────────────────────────────────────────────
-const totalParticles = 180;
+const totalParticles = 380;
 const particles = [];
 let dustPositionsAttr, dustColorsAttr;
 let dustMaterial;
 
-const MAX_PARTICLES = 300;
+const MAX_PARTICLES = 600;
 const LUNAR_GRAVITY = -1.62 * 0.3;
 
 const dustSystem = {
@@ -459,10 +459,10 @@ function rebuildParticlesForPanels() {
   geo.setAttribute('color', dustColorsAttr);
 
   dustMaterial = new THREE.PointsMaterial({
-    size: 0.003,
+    size: 0.006,
     map: createDustTexture(),
     transparent: true,
-    opacity: 0.92,
+    opacity: 0.95,
     depthWrite: false,
     vertexColors: true,
     blending: THREE.AdditiveBlending,
