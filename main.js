@@ -94,7 +94,7 @@ function init() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.3;  // slightly lifted for panel/dust readability
+  renderer.toneMappingExposure = 1.0;
   container.appendChild(renderer.domElement);
 
   // ── Orbit Controls ─────────────────────────────────────────────────────────
@@ -129,10 +129,7 @@ function init() {
   const hemiLight = new THREE.HemisphereLight(0x223355, 0x0d0d0f, 0.4);
   scene.add(hemiLight);
 
-  // 5. PANEL GLINT LIGHT — grazing-angle directional light focusing on the solar panels
-  const panelLight = new THREE.DirectionalLight(0xffffff, 1.3);
-  panelLight.position.set(-2.2, 0.28, 1.2);
-  scene.add(panelLight);
+
 
   // ── Moon Globe ─────────────────────────────────────────────────────────────
   buildMoon();
@@ -413,14 +410,15 @@ function detectDustPanels(root) {
     if (child.material) {
       const oldMat = child.material;
       const newMat = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(0x0b1329), // Deep blue-black photovoltaic
-        roughness: 0.15,
-        metalness: 0.4,                  // Semiconductive reflectance
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.06,
-        reflectivity: 0.95,
-        emissive: new THREE.Color(0x000103),
-        emissiveIntensity: 0.1,
+        // Starts in dusty state (coverage=100%); per-frame lerp restores as dust clears
+        color: new THREE.Color(0x2b2927), // Dusty brown-grey
+        roughness: 0.88,
+        metalness: 0.04,
+        clearcoat: 0.0,
+        clearcoatRoughness: 0.85,
+        reflectivity: 0.3,
+        emissive: new THREE.Color(0x000000),
+        emissiveIntensity: 0.0,
         map:          oldMat.map,
         normalMap:    oldMat.normalMap,
         roughnessMap: oldMat.roughnessMap,
@@ -524,9 +522,9 @@ function rebuildParticlesForPanels() {
     positions[i * 3 + 1] = py;
     positions[i * 3 + 2] = pz;
 
-    // Colour: high contrast warm grey-beige regolith tones
+    // Colour: warm grey-beige regolith tones with natural variation
     const t = Math.random();
-    const bright = 0.78 + t * 0.15;
+    const bright = 0.68 + t * 0.14;
     colors[i * 3]     = bright + 0.04;           // R — slightly warmer
     colors[i * 3 + 1] = bright;
     colors[i * 3 + 2] = bright - 0.10 - t * 0.04; // B — cooler, more grey-brown
@@ -1124,12 +1122,12 @@ function updateDustSimulation(deltaTime, elapsed) {
       const stuckCount = dustSystem.stuckCounts[pi] || 0;
       const coverageRatio = Math.min(1.0, stuckCount / initCount);
 
-      // Interpolate properties: Clean (0.15 roughness, 0.4 metalness, 1.0 clearcoat)
-      // vs Dusty (0.82 roughness, 0.08 metalness, 0.0 clearcoat)
-      mesh.material.roughness = THREE.MathUtils.lerp(0.15, 0.82, coverageRatio);
-      mesh.material.metalness = THREE.MathUtils.lerp(0.4, 0.08, coverageRatio);
-      mesh.material.clearcoat = THREE.MathUtils.lerp(1.0, 0.0, coverageRatio);
-      mesh.material.clearcoatRoughness = THREE.MathUtils.lerp(0.06, 0.85, coverageRatio);
+      // Interpolate properties: Clean (0.35 roughness, 0.15 metalness, 0.25 clearcoat)
+      // vs Dusty (0.88 roughness, 0.04 metalness, 0.0 clearcoat)
+      mesh.material.roughness = THREE.MathUtils.lerp(0.35, 0.88, coverageRatio);
+      mesh.material.metalness = THREE.MathUtils.lerp(0.15, 0.04, coverageRatio);
+      mesh.material.clearcoat = THREE.MathUtils.lerp(0.25, 0.0, coverageRatio);
+      mesh.material.clearcoatRoughness = THREE.MathUtils.lerp(0.35, 0.85, coverageRatio);
 
       // Interpolate color: Deep blue-black clean panels vs dusty brown-grey panels
       const cleanColor = new THREE.Color(0x0b1329);
