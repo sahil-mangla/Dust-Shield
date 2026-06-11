@@ -1,21 +1,24 @@
 :root {
-  /* Color Tokens - Mission Operations Deck */
-  --color-base-bg: hsl(224, 25%, 8%);
-  --color-surface-bg: hsl(224, 25%, 12%);
-  --color-surface-border: hsl(224, 15%, 20%);
+  /* Color Tokens - Apple Pro Workstation Deck (Graphite) */
+  --color-base-bg: #1C1C1E;
+  --color-surface-bg: #2C2C2E;
+  --color-surface-raised: #3A3A3C;
+  --color-hairline: #48484A;
+  --color-surface-border: #48484A;
   
-  --color-primary: hsl(210, 100%, 60%);     /* Active signals */
-  --color-success: hsl(145, 80%, 45%);      /* EDS On */
-  --color-warning: hsl(38, 95%, 55%);       /* EDS Off */
-  --color-error: hsl(355, 85%, 55%);        /* Degradation */
+  --color-primary: #0A84FF;                 /* Apple system blue */
+  --color-success: #30D158;                 /* Apple system green */
+  --color-warning: #FF9F0A;                 /* Apple system orange */
+  --color-error: #FF453A;                   /* Apple system red */
   
-  --color-text-main: hsl(210, 20%, 95%);
-  --color-text-muted: hsl(210, 15%, 70%);
-  --color-text-inverted: hsl(224, 25%, 8%);
+  --color-text-main: #F2F2F7;
+  --color-text-muted: #98989D;
+  --color-text-inverted: #1C1C1E;
   
   /* Typography Scale */
-  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, monospace;
   
   --text-size-title: clamp(1.5rem, 4vw, 3rem);
   --text-size-header: 1.25rem;

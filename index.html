@@ -3,158 +3,260 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>DustShield Digital Twin // Mission Operations</title>
-  <!-- Typography Styles -->
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <!-- Material Icons -->
+  <meta name="description" content="DustShield Digital Twin — Real-time lunar EDS simulation for electrostatic dust clearing on solar arrays.">
+  <title>DustShield Digital Twin | Mission Operations</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-  <!-- Stylesheets -->
   <link rel="stylesheet" href="index.css">
-  <!-- Three.js CDN Dependencies -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/MeshSurfaceSampler.js"></script>
 </head>
 <body>
-  <!-- Header Bar -->
+
+  <!-- ═══════════════════════════════════════════════════════
+       TOP BAR — Engineering Metrics
+       ═══════════════════════════════════════════════════════ -->
   <header class="app-header">
-    <div class="header-left">
-      <span class="material-symbols-outlined header-icon">hub</span>
-      <h1 class="header-title">DUSTSHIELD // LUNAR EDS TWIN</h1>
-      <div class="status-badge">
+
+    <div class="header-identity">
+      <div class="header-logo-mark"></div>
+      <div class="header-title-block">
+        <span class="header-mission-id">DUSTSHIELD DIGITAL TWIN</span>
+      </div>
+    </div>
+
+    <!-- 4-slot live engineering metrics -->
+    <div class="header-metrics">
+
+
+      <div class="metric-item">
+        <span class="metric-label">SOLAR OUTPUT</span>
+        <span class="metric-value critical" id="hdr-solar">12<span class="metric-unit">W</span></span>
+      </div>
+      <div class="metric-divider"></div>
+
+      <div class="metric-item">
+        <span class="metric-label">POWER RECOVERED</span>
+        <span class="metric-value" id="hdr-power-recovered">+0<span class="metric-unit">W</span></span>
+      </div>
+      <div class="metric-divider"></div>
+
+      <div class="metric-item">
+        <span class="metric-label">EDS STATUS</span>
+        <span class="metric-value" id="hdr-eds-status">
+          <span class="eds-status-badge standby" id="eds-status-badge">STANDBY</span>
+        </span>
+      </div>
+
+    </div>
+
+    <div class="header-status">
+      <div class="status-indicator" id="status-indicator">
         <span class="status-dot"></span>
-        <span class="status-text">SYSTEM OK</span>
-      </div>
-      <div class="link-badge">
-        <span class="material-symbols-outlined link-icon">wifi_tethering</span>
-        <span class="link-text">UHF/LINK: SECURE</span>
+        <span class="status-label" id="status-label">NOMINAL</span>
       </div>
     </div>
-    <div class="header-right">
-      <button id="btn-sync" class="btn-sync">
-        <span class="material-symbols-outlined">sync</span>
-        SYNC_DATA
-      </button>
-    </div>
+
   </header>
 
-  <!-- App Wrapper -->
-  <div class="app-container">
-    <!-- Sidebar Navigation -->
-    <nav class="side-deck">
-      <div class="side-deck-header">
-        <h2>Control Deck</h2>
-        <p>Station 01-A</p>
-      </div>
-      <div class="side-deck-links">
-        <a href="#" class="nav-link active">
-          <span class="material-symbols-outlined">dashboard</span>
-          <span>Dashboard</span>
-        </a>
-        <a href="#" class="nav-link">
-          <span class="material-symbols-outlined">view_in_ar</span>
-          <span>Simulation</span>
-        </a>
-        <a href="#" class="nav-link">
-          <span class="material-symbols-outlined">analytics</span>
-          <span>Analytics</span>
-        </a>
-        <a href="#" class="nav-link">
-          <span class="material-symbols-outlined">history</span>
-          <span>History</span>
-        </a>
-      </div>
-      <div class="side-deck-footer">
-        <button id="btn-calibrate" class="btn-calibrate">INITIATE CALIBRATION</button>
-      </div>
-    </nav>
 
-    <!-- Main Workspace -->
+  <!-- ═══════════════════════════════════════════════════════
+       APP LAYOUT
+       ═══════════════════════════════════════════════════════ -->
+  <div class="app-container">
     <main class="main-viewport">
-      <div class="bento-grid">
-        <!-- Left Side: WebGL Simulator -->
-        <div class="viewport-card">
-          <div class="simulator-label">
-            <span class="sim-indicator"></span>
-            <span class="sim-text">WebGL 3D SIMULATOR [ACTIVE]</span>
-          </div>
-          <!-- Three.js Canvas Container -->
-          <div id="threejs-container" style="position: relative;">
-            <button id="btn-land" class="btn-land" style="display: none !important;">
-              <span class="material-symbols-outlined">flight_land</span>
-              <span>INITIATE LANDING</span>
-            </button>
-            <button id="btn-return-orbit" class="btn-return-orbit" style="display: none !important;">
-              <span class="material-symbols-outlined">rocket_launch</span>
-              <span>RETURN TO ORBIT</span>
-            </button>
-            <div id="descent-hud" class="descent-hud" style="display: none;">
-              <div class="hud-scanning-line"></div>
-              <div class="hud-box">
-                <div class="hud-title">DESCENT SEQUENCE ACTIVE</div>
-                <div class="hud-spinner"></div>
-                <div class="hud-coords" id="hud-coords">LAT: 0.00° // LON: 0.00°</div>
-                <div class="hud-status" id="hud-status">STATUS: INITIATING DE-ORBIT BURN</div>
+      <div class="workspace-layout">
+
+        <!-- ─── LEFT: 3D Viewport + Overlay Event Stream ─── -->
+        <div class="left-pane">
+
+          <!-- WebGL Viewport Card — fills the entire left pane -->
+          <div class="viewport-card">
+
+            <!-- Viewport HUD top bar -->
+            <div class="viewport-hud-bar">
+              <div class="hud-left">
+                <span class="sim-indicator"></span>
+                <span class="sim-text">3D SIMULATION — ACTIVE</span>
+              </div>
+
+              <div class="hud-center">
+                <div class="hud-pill-meter">
+                  <span class="material-symbols-outlined telemetry-status-icon text-error animate-pulse" id="icon-coverage">grain</span>
+                  <span class="meter-label">DUST</span>
+                  <div class="meter-track">
+                    <div id="progress-coverage" class="meter-fill fill-error" style="width:100%"></div>
+                  </div>
+                  <div class="meter-value-container">
+                    <span id="value-coverage" class="meter-value">100</span><span class="meter-unit">%</span>
+                  </div>
+                </div>
+
+                <div class="hud-pill-meter">
+                  <span class="material-symbols-outlined telemetry-status-icon text-error" id="icon-efficiency">light_mode</span>
+                  <span class="meter-label">SOLAR</span>
+                  <div class="meter-track">
+                    <div id="progress-efficiency" class="meter-fill fill-error" style="width:5%"></div>
+                  </div>
+                  <div class="meter-value-container">
+                    <span id="value-efficiency" class="meter-value">5</span><span class="meter-unit">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="hud-right">
+                <button id="btn-return-orbit" class="btn-return-orbit" style="display:none">
+                  <span class="material-symbols-outlined">rocket_launch</span>
+                  <span>Return to Orbit</span>
+                </button>
               </div>
             </div>
-          </div>
-          
-          <div class="viewport-overlay-bottom-left">
-            <p>COORD_LUNAR: 0.12° N, 30.55° E</p>
-            <p>RENDER_ENGINE: SHADER_CORE_V4</p>
-          </div>
-          <div class="viewport-overlay-bottom-right">
-            <div class="buffer-bar-container">
-              <div class="buffer-bar"></div>
-            </div>
-            <span id="fps-counter">BUFF_STREAM: 60 FPS</span>
-          </div>
-        </div>
 
-        <!-- Right Side: Tuning Controls & Hardware -->
+            <!-- Three.js Canvas — occupies all remaining vertical space -->
+            <div id="threejs-container" style="position:relative">
+              <button id="btn-land" class="btn-land" style="display:none !important">
+                <span class="material-symbols-outlined">flight_land</span>
+                <span>Initiate Landing</span>
+              </button>
+
+              <div id="descent-hud" class="descent-hud" style="display:none">
+                <div class="hud-scanning-line"></div>
+                <div class="hud-box">
+                  <div class="hud-title">DESCENT SEQUENCE ACTIVE</div>
+                  <div class="hud-spinner"></div>
+                  <div class="hud-coords" id="hud-coords">LAT: 0.00° // LON: 0.00°</div>
+                  <div class="hud-status" id="hud-status">STATUS: INITIATING DE-ORBIT BURN</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom coord / FPS bar -->
+            <div class="viewport-overlay-bottom">
+              <span id="coord-readout" class="coord-readout">COORD_LUNAR: 0.12° N, 30.55° E</span>
+              <div class="stream-info">
+                <div class="buffer-bar-container"><div class="buffer-bar"></div></div>
+                <span id="fps-counter" class="fps-counter">STREAM: 60 FPS</span>
+              </div>
+            </div>
+
+          </div>
+          <!-- /.viewport-card -->
+
+          <!-- ─── Event Stream — OVERLAY drawer, anchored to bottom of left-pane ─── -->
+          <div class="console-section" id="console-section">
+            <div class="console-header" id="console-header">
+              <div class="console-title-box">
+                <span class="material-symbols-outlined console-icon">data_array</span>
+                <span class="console-title">Event Stream</span>
+                <span class="console-badge">LIVE</span>
+              </div>
+              <div class="console-controls">
+                <span id="console-time" class="console-timestamp">T+ 00:00:00:00</span>
+                <button id="btn-toggle-log" class="btn-toggle-log" aria-label="Toggle event stream">
+                  <span class="material-symbols-outlined">expand_less</span>
+                </button>
+              </div>
+            </div>
+            <div id="console-output" class="console-output"></div>
+          </div>
+
+        </div>
+        <!-- /.left-pane -->
+
+
+        <!-- ─── RIGHT: Inspector Panel ─── -->
         <aside class="control-card">
-          <div class="tuning-section">
+
+          <!-- ── Section 1: Performance Impact (outcomes first) ── -->
+          <section class="inspector-section">
             <header class="section-header">
-              <span class="material-symbols-outlined header-accent-icon">tune</span>
-              <h2>PARAMETER TUNING</h2>
+              <span class="material-symbols-outlined section-icon">analytics</span>
+              <h2 class="section-title">Performance Impact</h2>
             </header>
-            
+
+            <div class="perf-grid">
+              <div class="perf-item">
+                <span class="perf-label">Solar Efficiency</span>
+                <div class="perf-bar-track">
+                  <div class="perf-bar-fill fill-error" id="perf-bar-efficiency" style="width:5%"></div>
+                </div>
+                <span class="perf-value text-error" id="perf-value-efficiency">5%</span>
+              </div>
+              <div class="perf-item">
+                <span class="perf-label">Power Loss</span>
+                <div class="perf-bar-track">
+                  <div class="perf-bar-fill fill-warning" id="perf-bar-loss" style="width:95%"></div>
+                </div>
+                <span class="perf-value text-warning" id="perf-value-loss">~228 W</span>
+              </div>
+            </div>
+
+            <!-- Net Energy Recovered card — inside Performance Impact -->
+            <div class="energy-summary-card" id="energy-summary-card">
+              <div class="energy-card-header">
+                <span class="material-symbols-outlined energy-icon">electric_bolt</span>
+                <span class="energy-card-title">Net Energy Recovered</span>
+              </div>
+              <div class="energy-value-row">
+                <span class="energy-value" id="energy-recovered">0.00</span>
+                <span class="energy-unit">Wh</span>
+              </div>
+              <div class="energy-sub-row">
+                <span class="energy-sub-label">Est. daily gain:</span>
+                <span class="energy-sub-value" id="energy-daily">— Wh/sol</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Section 2: EDS Parameters ── -->
+          <section class="inspector-section">
+            <header class="section-header">
+              <span class="material-symbols-outlined section-icon">tune</span>
+              <h2 class="section-title">EDS Parameters</h2>
+            </header>
+
             <div class="tuning-controls">
-              <!-- Voltage -->
+
               <div class="control-group">
                 <div class="control-header">
-                  <label for="slider-voltage">Voltage Output</label>
+                  <label for="slider-voltage" class="control-label">High-Voltage Output</label>
                   <span id="display-voltage" class="control-readout">1250V</span>
                 </div>
-                <input type="range" id="slider-voltage" min="0" max="2000" step="50" value="1250">
+                <div class="slider-container">
+                  <div class="slider-tooltip" id="tooltip-voltage">1250V</div>
+                  <input type="range" id="slider-voltage" min="0" max="2000" step="50" value="1250">
+                </div>
                 <div class="control-ticks">
-                  <span>0V</span>
-                  <span>2000V</span>
+                  <span>0 V</span>
+                  <span>2000 V</span>
                 </div>
               </div>
 
-              <!-- Frequency -->
               <div class="control-group">
                 <div class="control-header">
-                  <label for="slider-frequency">Frequency Hz</label>
-                  <span id="display-frequency" class="control-readout">60Hz</span>
+                  <label for="slider-frequency" class="control-label">AC Drive Frequency</label>
+                  <span id="display-frequency" class="control-readout">60 Hz</span>
                 </div>
-                <input type="range" id="slider-frequency" min="1" max="100" step="1" value="60">
+                <div class="slider-container">
+                  <div class="slider-tooltip" id="tooltip-frequency">60Hz</div>
+                  <input type="range" id="slider-frequency" min="1" max="100" step="1" value="60">
+                </div>
                 <div class="control-ticks">
-                  <span>1Hz</span>
-                  <span>100Hz</span>
+                  <span>1 Hz</span>
+                  <span>100 Hz</span>
                 </div>
               </div>
 
-              <!-- Phase Selector -->
               <div class="control-group">
-                <span class="control-label-title">Phase Selection</span>
+                <span class="control-label">Wave Configuration</span>
                 <div class="phase-grid" id="phase-selector">
                   <button type="button" class="btn-phase" data-phase="2">2-Phase</button>
                   <button type="button" class="btn-phase active" data-phase="3">3-Phase</button>
                 </div>
               </div>
+
             </div>
 
             <div class="action-buttons">
@@ -162,90 +264,34 @@
                 <span class="material-symbols-outlined">bolt</span>
                 <span id="btn-activate-text">ACTIVATE COULOMB CLEARING</span>
               </button>
-              <button id="btn-reset" class="btn-reset">RESET DUST LAYOUT</button>
+              <button id="btn-reset" class="btn-reset">Reset Dust Deposition</button>
             </div>
-          </div>
+          </section>
 
-          <!-- Hardware Status Card -->
-          <div class="hardware-section">
-            <div class="hardware-header">
-              <div class="hardware-icon-box">
-                <span class="material-symbols-outlined">memory</span>
-              </div>
-              <div class="hardware-status-info">
-                <h3>HARDWARE INTERFACE</h3>
-                <p id="hardware-status-text" class="status-disconnected">
-                  <span class="material-symbols-outlined">link_off</span>
-                  UART: DISCONNECTED
-                </p>
-              </div>
+          <!-- ── Section 3: Hardware Interface ── -->
+          <section class="inspector-section hardware-section">
+            <header class="section-header">
+              <span class="material-symbols-outlined section-icon">memory</span>
+              <h2 class="section-title">Hardware Interface</h2>
+            </header>
+            <div class="hardware-status-row">
+              <p id="hardware-status-text" class="status-disconnected">
+                <span class="material-symbols-outlined">link_off</span>
+                UART: Disconnected
+              </p>
             </div>
             <button id="btn-hardware" class="btn-hardware">
               <span class="material-symbols-outlined">power_settings_new</span>
-              CONNECT PHYSICAL MCU
+              Connect Physical MCU
             </button>
-          </div>
+          </section>
 
-          <!-- Console Logger -->
-          <div class="console-section">
-            <div class="console-header">
-              <span class="console-title">System Logs</span>
-              <span id="console-time" class="console-timestamp">T+ 00:00:00:00</span>
-            </div>
-            <div id="console-output" class="console-output">
-              <!-- Logs populated dynamically -->
-            </div>
-          </div>
         </aside>
 
-        <!-- Bottom Telemetry Cards -->
-        <div class="telemetry-bar">
-          <!-- Dust Coverage -->
-          <div class="telemetry-card">
-            <div class="telemetry-left">
-              <span class="telemetry-label">Dust Coverage</span>
-              <div class="telemetry-readout-box">
-                <span id="value-coverage" class="telemetry-value">100</span>
-                <span class="telemetry-unit">%</span>
-              </div>
-              <div class="progress-bar-track">
-                <div id="progress-coverage" class="progress-bar-fill fill-error" style="width: 100%"></div>
-              </div>
-            </div>
-            <span class="material-symbols-outlined telemetry-status-icon text-error animate-pulse">grain</span>
-          </div>
-
-          <!-- Solar Efficiency -->
-          <div class="telemetry-card">
-            <div class="telemetry-left">
-              <span class="telemetry-label">Solar Efficiency</span>
-              <div class="telemetry-readout-box">
-                <span id="value-efficiency" class="telemetry-value">0</span>
-                <span class="telemetry-unit">%</span>
-              </div>
-              <div class="progress-bar-track">
-                <div id="progress-efficiency" class="progress-bar-fill fill-success" style="width: 0%"></div>
-              </div>
-            </div>
-            <span class="material-symbols-outlined telemetry-status-icon text-warning">light_mode</span>
-          </div>
-        </div>
       </div>
     </main>
   </div>
 
-  <!-- Footer -->
-  <footer class="app-footer">
-    <span class="footer-status">MISSION CONTROL OPERATIONAL - SECURE LINK ACTIVE</span>
-    <div class="footer-links">
-      <a href="#">System Logs</a>
-      <a href="#">Hardware Status</a>
-      <a href="#">Protocols</a>
-    </div>
-    <span class="footer-version">v4.0.2-ALPHA</span>
-  </footer>
-
-  <!-- Scripts -->
   <script src="main.js"></script>
 </body>
 </html>

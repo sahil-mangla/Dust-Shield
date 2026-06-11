@@ -67,6 +67,24 @@ let elValueCoverage, elProgressCoverage;
 let elValueEfficiency, elProgressEfficiency;
 let elConsoleTime;
 
+// ─── Header & Performance Panel DOM refs ─────────────────────────────────────
+let elHdrCoverage, elHdrSolar, elHdrPowerRecovered, elHdrEdsStatus;
+let elPerfBarEfficiency, elPerfBarLoss;
+let elPerfValEfficiency, elPerfValLoss;
+let elEnergyRecovered, elEnergyDaily;
+let elStatusIndicator, elStatusLabel;
+
+// ─── Energy model constants ─────────────────────────────────────────────────
+// Scientific attenuation model: Transmission = exp(-K * dustCoverage)
+// At 100% dust: ~4.98% transmission (≈12W); at 0%: 100% (240W)
+const EDS_K          = 0.03;   // attenuation coefficient
+const MAX_POWER_W    = 240;    // peak array output (clean panels)
+const BASE_POWER_W   = MAX_POWER_W * Math.exp(-EDS_K * 100); // ~11.95 W at full dust
+
+// ─── Energy accumulators ────────────────────────────────────────────────────
+let energyWh         = 0;      // Wh recovered since last reset
+let recoveredPowerW  = 0;      // instantaneous recovered watts
+
 let hardwareTimer = null;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -789,39 +807,61 @@ function initiateAscent() {
 
 // ─── UI Bindings & Event Logic ──────────────────────────────────────────────
 function bindUIEvents() {
-  elSliderVoltage = document.getElementById('slider-voltage');
-  elDisplayVoltage = document.getElementById('display-voltage');
-  elSliderFrequency = document.getElementById('slider-frequency');
+  elSliderVoltage    = document.getElementById('slider-voltage');
+  elDisplayVoltage   = document.getElementById('display-voltage');
+  elSliderFrequency  = document.getElementById('slider-frequency');
   elDisplayFrequency = document.getElementById('display-frequency');
-  
+
   const phaseSelector = document.getElementById('phase-selector');
   elPhaseButtons = phaseSelector ? phaseSelector.getElementsByClassName('btn-phase') : [];
 
-  elBtnActivate = document.getElementById('btn-activate');
-  elBtnActivateText = document.getElementById('btn-activate-text');
-  elBtnReset = document.getElementById('btn-reset');
-  elBtnHardware = document.getElementById('btn-hardware');
+  elBtnActivate      = document.getElementById('btn-activate');
+  elBtnActivateText  = document.getElementById('btn-activate-text');
+  elBtnReset         = document.getElementById('btn-reset');
+  elBtnHardware      = document.getElementById('btn-hardware');
   elHardwareStatusText = document.getElementById('hardware-status-text');
 
   elBtnReturnOrbit = document.getElementById('btn-return-orbit');
-  elDescentHud = document.getElementById('descent-hud');
-  elHudCoords = document.getElementById('hud-coords');
-  elHudStatus = document.getElementById('hud-status');
+  elDescentHud     = document.getElementById('descent-hud');
+  elHudCoords      = document.getElementById('hud-coords');
+  elHudStatus      = document.getElementById('hud-status');
 
-  elValueCoverage = document.getElementById('value-coverage');
-  elProgressCoverage = document.getElementById('progress-coverage');
-  elValueEfficiency = document.getElementById('value-efficiency');
+  elValueCoverage      = document.getElementById('value-coverage');
+  elProgressCoverage   = document.getElementById('progress-coverage');
+  elValueEfficiency    = document.getElementById('value-efficiency');
   elProgressEfficiency = document.getElementById('progress-efficiency');
 
   elConsoleTime = document.getElementById('console-time');
+
+  // Header metrics
+  elHdrCoverage = document.getElementById('hdr-coverage');
+  elHdrSolar    = document.getElementById('hdr-solar');
+  // New slots: Power Recovered + EDS Status (replaced Voltage + Elapsed)
+  elHdrPowerRecovered = document.getElementById('hdr-power-recovered');
+  elHdrEdsStatus      = document.getElementById('eds-status-badge');
+
+  // Performance panel (coverage row removed — lives in header now)
+  elPerfBarEfficiency= document.getElementById('perf-bar-efficiency');
+  elPerfBarLoss      = document.getElementById('perf-bar-loss');
+  elPerfValEfficiency= document.getElementById('perf-value-efficiency');
+  elPerfValLoss      = document.getElementById('perf-value-loss');
+
+  // Energy recovery
+  elEnergyRecovered = document.getElementById('energy-recovered');
+  elEnergyDaily     = document.getElementById('energy-daily');
+
+  // Status indicator
+  elStatusIndicator = document.getElementById('status-indicator');
+  elStatusLabel     = document.getElementById('status-label');
 
   if (elSliderVoltage) {
     elSliderVoltage.addEventListener('input', (e) => {
       state.voltage = parseInt(e.target.value);
       if (elDisplayVoltage) elDisplayVoltage.textContent = state.voltage + 'V';
+      if (elHdrVoltage) elHdrVoltage.innerHTML = state.voltage + '<span class="metric-unit">V</span>';
     });
     elSliderVoltage.addEventListener('change', () => {
-      writeLog(`HV Field Output set to ${state.voltage}V.`, 'info');
+      writeLog(`HV field output set to ${state.voltage} V.`, 'info');
     });
   }
 
@@ -856,11 +896,13 @@ function bindUIEvents() {
       if (state.edsActive) {
         elBtnActivate.classList.add('active');
         if (elBtnActivateText) elBtnActivateText.textContent = 'STOP COULOMB CLEARING';
-        writeLog(`EDS SYSTEM ACTIVE // ${state.voltage}V AC // ${state.frequency}Hz // ${state.phase}-Phase.`, 'success');
+        if (elHdrEdsStatus) { elHdrEdsStatus.textContent = 'ACTIVE'; elHdrEdsStatus.className = 'eds-status-badge active'; }
+        writeLog(`EDS ACTIVE — ${state.voltage} V AC / ${state.frequency} Hz / ${state.phase}-Phase. Coulomb clearing initiated.`, 'success');
       } else {
         elBtnActivate.classList.remove('active');
         if (elBtnActivateText) elBtnActivateText.textContent = 'ACTIVATE COULOMB CLEARING';
-        writeLog('EDS SYSTEM DEACTIVATED // Voltage cut.', 'info');
+        if (elHdrEdsStatus) { elHdrEdsStatus.textContent = 'STANDBY'; elHdrEdsStatus.className = 'eds-status-badge standby'; }
+        writeLog('EDS deactivated. Field voltage cut.', 'info');
       }
     });
   }
@@ -877,7 +919,7 @@ function bindUIEvents() {
       state.hardwareConnected = !state.hardwareConnected;
       if (state.hardwareConnected) {
         elBtnHardware.classList.add('active');
-        elBtnHardware.innerHTML = `<span class="material-symbols-outlined">power_settings_new</span> DISCONNECT PHYSICAL MCU`;
+        elBtnHardware.innerHTML = `<span class="material-symbols-outlined">power_settings_new</span> Disconnect physical MCU`;
         if (elHardwareStatusText) {
           elHardwareStatusText.className = 'status-connected';
           elHardwareStatusText.innerHTML = `<span class="material-symbols-outlined">link</span> UART: CONNECTED (ESP32-C3)`;
@@ -887,7 +929,7 @@ function bindUIEvents() {
         simulateMicrocontrollerSignals();
       } else {
         elBtnHardware.classList.remove('active');
-        elBtnHardware.innerHTML = `<span class="material-symbols-outlined">power_settings_new</span> CONNECT PHYSICAL MCU`;
+        elBtnHardware.innerHTML = `<span class="material-symbols-outlined">power_settings_new</span> Connect physical MCU`;
         if (elHardwareStatusText) {
           elHardwareStatusText.className = 'status-disconnected';
           elHardwareStatusText.innerHTML = `<span class="material-symbols-outlined">link_off</span> UART: DISCONNECTED`;
@@ -905,6 +947,67 @@ function bindUIEvents() {
     elBtnReturnOrbit.addEventListener('click', () => {
       initiateAscent();
     });
+  }
+
+  // ── Slider Tooltips Setup ────────────────────────────────────────────────
+  const setupSliderTooltip = (slider, tooltip, suffix) => {
+    if (!slider || !tooltip) return;
+    
+    const updateTooltip = () => {
+      const val = parseInt(slider.value);
+      const min = parseInt(slider.min) || 0;
+      const max = parseInt(slider.max) || 100;
+      const pct = (val - min) / (max - min);
+      tooltip.textContent = val + suffix;
+      // Position the tooltip above the thumb
+      tooltip.style.left = `calc(${pct * 100}% - ${tooltip.offsetWidth / 2}px + ${(0.5 - pct) * 16}px)`;
+    };
+    
+    const showTooltip = () => {
+      tooltip.classList.add('visible');
+      updateTooltip();
+    };
+    
+    const hideTooltip = () => {
+      tooltip.classList.remove('visible');
+    };
+    
+    slider.addEventListener('input', showTooltip);
+    slider.addEventListener('mousedown', showTooltip);
+    slider.addEventListener('touchstart', showTooltip);
+    
+    slider.addEventListener('mouseup', hideTooltip);
+    slider.addEventListener('touchend', hideTooltip);
+    slider.addEventListener('change', hideTooltip);
+    
+    // Initial position
+    updateTooltip();
+  };
+  
+  setupSliderTooltip(elSliderVoltage, document.getElementById('tooltip-voltage'), 'V');
+  setupSliderTooltip(elSliderFrequency, document.getElementById('tooltip-frequency'), 'Hz');
+
+  // ── Collapsible Event Stream Overlay Drawer ─────────────────────────────
+  // The console-section is position:absolute so toggling it does NOT resize
+  // the Three.js canvas. onResize() is intentionally NOT called here.
+  const elConsoleSection = document.getElementById('console-section');
+  const elBtnToggleLog   = document.getElementById('btn-toggle-log');
+  if (elConsoleSection && elBtnToggleLog) {
+    const toggleLogDrawer = () => {
+      const isExpanded = elConsoleSection.classList.toggle('expanded');
+      const icon = elBtnToggleLog.querySelector('.material-symbols-outlined');
+      if (icon) icon.textContent = isExpanded ? 'expand_more' : 'expand_less';
+      // Do NOT call onResize() — drawer is an overlay, viewport is unchanged.
+    };
+    elBtnToggleLog.addEventListener('click', toggleLogDrawer);
+
+    const elConsoleHeader = document.getElementById('console-header');
+    if (elConsoleHeader) {
+      elConsoleHeader.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        toggleLogDrawer();
+      });
+    }
   }
 }
 
@@ -981,28 +1084,43 @@ function resetDust() {
 
   dustPositionsAttr.needsUpdate = true;
   
-  state.dustCoverage = 100;
+  state.dustCoverage    = 100;
   state.solarEfficiency = 0;
+  energyWh             = 0;
+  recoveredPowerW      = 0;
 
-  if (elValueCoverage) elValueCoverage.textContent = 100;
-  if (elProgressCoverage) {
-    elProgressCoverage.style.width = '100%';
-    elProgressCoverage.className = 'progress-bar-fill fill-error';
-    const icon = document.querySelector('.telemetry-card:first-child .telemetry-status-icon');
-    if (icon) icon.className = 'material-symbols-outlined telemetry-status-icon text-error animate-pulse';
-  }
+  // HUD pills
+  const _effPct = Math.round(Math.exp(-EDS_K * 100) * 100); // ~5%
+  if (elValueCoverage)      elValueCoverage.textContent = 100;
+  if (elProgressCoverage)   { elProgressCoverage.style.width = '100%'; elProgressCoverage.className = 'meter-fill fill-error'; }
+  if (elValueEfficiency)    elValueEfficiency.textContent = _effPct;
+  if (elProgressEfficiency) { elProgressEfficiency.style.width = _effPct + '%'; elProgressEfficiency.className = 'meter-fill fill-error'; }
 
-  if (elValueEfficiency) elValueEfficiency.textContent = 0;
-  if (elProgressEfficiency) {
-    elProgressEfficiency.style.width = '0%';
-    elProgressEfficiency.className = 'progress-bar-fill fill-error';
-    const icon = document.querySelector('.telemetry-card:nth-child(2) .telemetry-status-icon');
-    if (icon) icon.style.color = 'var(--color-error)';
-  }
+  const iconCov = document.getElementById('icon-coverage');
+  if (iconCov) iconCov.className = 'material-symbols-outlined telemetry-status-icon text-error animate-pulse';
+  const iconEff = document.getElementById('icon-efficiency');
+  if (iconEff) iconEff.className = 'material-symbols-outlined telemetry-status-icon text-error';
+
+  // Header
+  const _solarW = Math.round(BASE_POWER_W);
+  if (elHdrCoverage)       { elHdrCoverage.innerHTML = '100<span class="metric-unit">%</span>'; elHdrCoverage.className = 'metric-value critical'; }
+  if (elHdrSolar)          { elHdrSolar.innerHTML = _solarW + '<span class="metric-unit">W</span>'; elHdrSolar.className = 'metric-value critical'; }
+  if (elHdrPowerRecovered) { elHdrPowerRecovered.innerHTML = '+0<span class="metric-unit">W</span>'; elHdrPowerRecovered.className = 'metric-value'; }
+  if (elHdrEdsStatus)      { elHdrEdsStatus.textContent = 'STANDBY'; elHdrEdsStatus.className = 'eds-status-badge standby'; }
+
+  // Performance bars
+  const _lossPct = 100 - _effPct;
+  const _lossW   = Math.round(MAX_POWER_W - BASE_POWER_W);
+  if (elPerfBarEfficiency) { elPerfBarEfficiency.style.width = _effPct + '%'; elPerfBarEfficiency.className = 'perf-bar-fill fill-error'; }
+  if (elPerfBarLoss)       { elPerfBarLoss.style.width = _lossPct + '%';      elPerfBarLoss.className       = 'perf-bar-fill fill-warning'; }
+  if (elPerfValEfficiency) { elPerfValEfficiency.textContent = _effPct + '%'; elPerfValEfficiency.className = 'perf-value text-error'; }
+  if (elPerfValLoss)       elPerfValLoss.textContent = '~' + _lossW + ' W';
+  if (elEnergyRecovered)   elEnergyRecovered.textContent = '0.00';
+  if (elEnergyDaily)       elEnergyDaily.textContent = '— Wh/sol';
 
   if (state.edsActive) {
     state.edsActive = false;
-    if (elBtnActivate) elBtnActivate.classList.remove('active');
+    if (elBtnActivate)     elBtnActivate.classList.remove('active');
     if (elBtnActivateText) elBtnActivateText.textContent = 'ACTIVATE COULOMB CLEARING';
   }
 }
@@ -1143,53 +1261,139 @@ function updateDustSimulation(deltaTime, elapsed) {
   const coverage   = Math.min(100, Math.round((totalStuck / count) * 100));
   const efficiency = Math.max(0, 100 - coverage);
 
-  if (state.dustCoverage !== coverage) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCIENTIFIC ENERGY MODEL  —  Transmission = exp(-K * dustCoverage)
+  //   k = 0.03  (calibrated to lunar regolith spectral attenuation data)
+  //   BASE_POWER_W = power at 100% dust coverage (≈ 12 W)
+  //   recoveredPowerW = currentPower − BASE_POWER_W (recovered vs fully-dusty)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const transmission    = Math.exp(-EDS_K * coverage);
+  const currentPowerW   = MAX_POWER_W * transmission;
+  recoveredPowerW       = Math.max(0, currentPowerW - BASE_POWER_W);
+
+  // Scientific efficiency percentage (relative to MAX_POWER_W)
+  const efficiencyPct = Math.round(transmission * 100);
+
+  // Accumulate energy recovered only while EDS is actively clearing dust.
+  // Stops automatically when EDS is off or dust reaches 0%.
+  if (state.edsActive && coverage > 0 && recoveredPowerW > 0) {
+    energyWh += (recoveredPowerW * deltaTime) / 3600;
+  }
+
+  // ── Coverage changed? ────────────────────────────────────────────────────
+  const covChanged = state.dustCoverage !== coverage;
+  const effChanged = state.solarEfficiency !== efficiencyPct;
+
+  if (covChanged) {
     state.dustCoverage = coverage;
+
+    // HUD pill
     if (elValueCoverage) elValueCoverage.textContent = coverage;
     if (elProgressCoverage) {
       elProgressCoverage.style.width = coverage + '%';
+      const iconCov = document.getElementById('icon-coverage');
       if (coverage > 60) {
-        elProgressCoverage.className = 'progress-bar-fill fill-error';
-        const icon = document.querySelector('.telemetry-card:first-child .telemetry-status-icon');
-        if (icon) icon.className = 'material-symbols-outlined telemetry-status-icon text-error animate-pulse';
+        elProgressCoverage.className = 'meter-fill fill-error';
+        if (iconCov) iconCov.className = 'material-symbols-outlined telemetry-status-icon text-error animate-pulse';
       } else if (coverage > 15) {
-        elProgressCoverage.className = 'progress-bar-fill fill-warning';
-        const icon = document.querySelector('.telemetry-card:first-child .telemetry-status-icon');
-        if (icon) icon.className = 'material-symbols-outlined telemetry-status-icon text-warning';
+        elProgressCoverage.className = 'meter-fill fill-warning';
+        if (iconCov) iconCov.className = 'material-symbols-outlined telemetry-status-icon text-warning';
       } else {
-        elProgressCoverage.className = 'progress-bar-fill fill-success';
-        const icon = document.querySelector('.telemetry-card:first-child .telemetry-status-icon');
-        if (icon) icon.className = 'material-symbols-outlined telemetry-status-icon text-success';
+        elProgressCoverage.className = 'meter-fill fill-success';
+        if (iconCov) iconCov.className = 'material-symbols-outlined telemetry-status-icon text-success';
       }
     }
+
+    // Header — Dust Coverage slot
+    if (elHdrCoverage) {
+      elHdrCoverage.innerHTML = coverage + '<span class="metric-unit">%</span>';
+      elHdrCoverage.className = coverage > 60 ? 'metric-value critical' : coverage > 15 ? 'metric-value degraded' : 'metric-value nominal';
+    }
+
+    // Power loss bar (loss relative to MAX, not baseline)
+    const lossW   = Math.round(MAX_POWER_W - currentPowerW);
+    const lossPct = Math.round((1 - transmission) * 100);
+    if (elPerfBarLoss) {
+      elPerfBarLoss.style.width = lossPct + '%';
+      elPerfBarLoss.className = lossPct > 50 ? 'perf-bar-fill fill-warning' : 'perf-bar-fill fill-success';
+    }
+    if (elPerfValLoss) elPerfValLoss.textContent = lossW > 0 ? '~' + lossW + ' W' : '0 W';
   }
 
-  if (state.solarEfficiency !== efficiency) {
-    state.solarEfficiency = efficiency;
-    if (elValueEfficiency) elValueEfficiency.textContent = efficiency;
+  if (effChanged) {
+    state.solarEfficiency = efficiencyPct;
+
+    // HUD pill — Solar Efficiency
+    if (elValueEfficiency) elValueEfficiency.textContent = efficiencyPct;
     if (elProgressEfficiency) {
-      elProgressEfficiency.style.width = efficiency + '%';
-      if (efficiency >= 85) {
-        elProgressEfficiency.className = 'progress-bar-fill fill-success';
-        const icon = document.querySelector('.telemetry-card:nth-child(2) .telemetry-status-icon');
-        if (icon) icon.className = 'material-symbols-outlined telemetry-status-icon text-success';
-      } else if (efficiency >= 30) {
-        elProgressEfficiency.className = 'progress-bar-fill fill-warning';
-        const icon = document.querySelector('.telemetry-card:nth-child(2) .telemetry-status-icon');
-        if (icon) icon.className = 'material-symbols-outlined telemetry-status-icon text-warning';
+      elProgressEfficiency.style.width = efficiencyPct + '%';
+      const iconEff = document.getElementById('icon-efficiency');
+      if (efficiencyPct >= 85) {
+        elProgressEfficiency.className = 'meter-fill fill-success';
+        if (iconEff) iconEff.className = 'material-symbols-outlined telemetry-status-icon text-success';
+      } else if (efficiencyPct >= 30) {
+        elProgressEfficiency.className = 'meter-fill fill-warning';
+        if (iconEff) iconEff.className = 'material-symbols-outlined telemetry-status-icon text-warning';
       } else {
-        elProgressEfficiency.className = 'progress-bar-fill fill-error';
-        const icon = document.querySelector('.telemetry-card:nth-child(2) .telemetry-status-icon');
-        if (icon) icon.className = 'material-symbols-outlined telemetry-status-icon text-error';
+        elProgressEfficiency.className = 'meter-fill fill-error';
+        if (iconEff) iconEff.className = 'material-symbols-outlined telemetry-status-icon text-error';
+      }
+    }
+
+    // Header — Solar Output slot
+    const solarW = Math.round(currentPowerW);
+    if (elHdrSolar) {
+      elHdrSolar.innerHTML = solarW + '<span class="metric-unit">W</span>';
+      elHdrSolar.className = efficiencyPct >= 85 ? 'metric-value nominal' : efficiencyPct >= 30 ? 'metric-value degraded' : 'metric-value critical';
+    }
+
+    // Performance — Solar Efficiency bar
+    if (elPerfBarEfficiency) {
+      elPerfBarEfficiency.style.width = efficiencyPct + '%';
+      elPerfBarEfficiency.className = efficiencyPct >= 85 ? 'perf-bar-fill fill-success' : efficiencyPct >= 30 ? 'perf-bar-fill fill-warning' : 'perf-bar-fill fill-error';
+    }
+    if (elPerfValEfficiency) {
+      elPerfValEfficiency.textContent = efficiencyPct + '%';
+      elPerfValEfficiency.className = efficiencyPct >= 85 ? 'perf-value text-success' : efficiencyPct >= 30 ? 'perf-value text-warning' : 'perf-value text-error';
+    }
+
+    // Status indicator
+    if (elStatusIndicator && elStatusLabel) {
+      if (efficiencyPct >= 85) {
+        elStatusIndicator.className = 'status-indicator';
+        elStatusLabel.textContent = 'NOMINAL';
+      } else if (efficiencyPct >= 30) {
+        elStatusIndicator.className = 'status-indicator warn';
+        elStatusLabel.textContent = 'DEGRADED';
+      } else {
+        elStatusIndicator.className = 'status-indicator crit';
+        elStatusLabel.textContent = 'CRITICAL';
       }
     }
   }
 
+  // Header — Power Recovered (update every frame, small perf cost is negligible)
+  const recW = Math.round(recoveredPowerW);
+  if (elHdrPowerRecovered) {
+    elHdrPowerRecovered.innerHTML = '+' + recW + '<span class="metric-unit">W</span>';
+    elHdrPowerRecovered.className = recW > 0 ? 'metric-value active' : 'metric-value';
+  }
+
+  // Energy recovered card
+  if (elEnergyRecovered) elEnergyRecovered.textContent = energyWh.toFixed(2);
+  if (elEnergyDaily) {
+    // Estimate: current power × 6 effective solar hours per lunar day
+    const dailyEst = (currentPowerW * 6).toFixed(1);
+    elEnergyDaily.textContent = currentPowerW > BASE_POWER_W + 1 ? dailyEst + ' Wh/sol' : '— Wh/sol';
+  }
+
+  // EDS status badge auto-shutdown
   if (coverage === 0 && state.edsActive) {
     state.edsActive = false;
-    if (elBtnActivate) elBtnActivate.classList.remove('active');
+    if (elBtnActivate)     elBtnActivate.classList.remove('active');
     if (elBtnActivateText) elBtnActivateText.textContent = 'ACTIVATE COULOMB CLEARING';
-    writeLog('EDS System Auto-Shutdown. Solar surface 100% restored.', 'success');
+    if (elHdrEdsStatus)    { elHdrEdsStatus.textContent = 'STANDBY'; elHdrEdsStatus.className = 'eds-status-badge standby'; }
+    writeLog('EDS auto-shutdown. Solar array fully restored — 100% transmission.', 'success');
   }
 }
 
@@ -1204,7 +1408,14 @@ function onResize() {
   renderer.setSize(W, H);
 }
 
-// ─── System Logs Output Helper ───────────────────────────────────────────────
+// ─── Event Stream Output Helper ───────────────────────────────────────────────
+const LOG_TAG_MAP = {
+  info:    { tag: 'INFO',  cls: 'log-tag-info' },
+  success: { tag: 'OK',   cls: 'log-tag-success' },
+  error:   { tag: 'FAIL', cls: 'log-tag-error' },
+  warning: { tag: 'WARN', cls: 'log-tag-warning' },
+};
+
 function writeLog(message, type = 'info') {
   const out = document.getElementById('console-output');
   if (!out) return;
@@ -1212,19 +1423,31 @@ function writeLog(message, type = 'info') {
   const now = new Date();
   const timeStr = now.toTimeString().split(' ')[0];
 
+  const meta = LOG_TAG_MAP[type] || LOG_TAG_MAP.info;
+
   const line = document.createElement('div');
-  line.className = 'log-line';
+  line.className = `log-line log-${type}`;
 
   const ts = document.createElement('span');
   ts.className = 'log-time';
-  ts.textContent = `[${timeStr}]`;
+  ts.textContent = timeStr;
 
-  const txt = document.createElement('span');
-  txt.className = `log-${type}`;
-  txt.textContent = ' ' + message;
+  const sep = document.createElement('span');
+  sep.className = 'log-separator';
+  sep.textContent = '│';
+
+  const tag = document.createElement('span');
+  tag.className = `log-type-tag ${meta.cls}`;
+  tag.textContent = meta.tag;
+
+  const body = document.createElement('span');
+  body.className = 'log-body';
+  body.textContent = message;
 
   line.appendChild(ts);
-  line.appendChild(txt);
+  line.appendChild(sep);
+  line.appendChild(tag);
+  line.appendChild(body);
   out.appendChild(line);
   out.scrollTop = out.scrollHeight;
 }
@@ -1238,15 +1461,17 @@ function tick() {
     starField.material.uniforms.uTime.value = elapsed;
   }
 
-  if (elConsoleTime) {
-    const totalSecs = Math.floor(elapsed);
-    const ms = Math.floor((elapsed - totalSecs) * 100);
-    const hrs = Math.floor(totalSecs / 3600).toString().padStart(2, '0');
-    const mins = Math.floor((totalSecs % 3600) / 60).toString().padStart(2, '0');
-    const secs = (totalSecs % 60).toString().padStart(2, '0');
-    const msStr = ms.toString().padStart(2, '0');
-    elConsoleTime.textContent = `T+ ${hrs}:${mins}:${secs}:${msStr}`;
-  }
+  // ── Mission elapsed time ────────────────────────────────────────────────
+  const totalSecs = Math.floor(elapsed);
+  const ms   = Math.floor((elapsed - totalSecs) * 100);
+  const hrs  = Math.floor(totalSecs / 3600).toString().padStart(2, '0');
+  const mins = Math.floor((totalSecs % 3600) / 60).toString().padStart(2, '0');
+  const secs = (totalSecs % 60).toString().padStart(2, '0');
+  const msStr = ms.toString().padStart(2, '0');
+  const timeStr = `T+ ${hrs}:${mins}:${secs}:${msStr}`;
+
+  if (elConsoleTime) elConsoleTime.textContent = timeStr;
+  // (Mission Elapsed removed from header — console timestamp is sufficient)
 
   if (state.mode === 'orbit') {
     // ─── Startup Cinematic Intro ───
