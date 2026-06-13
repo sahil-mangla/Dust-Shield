@@ -1,4 +1,4 @@
-# DustShield Digital Twin // Mission Operations Simulator
+# DustShield Digital Twin
 
 An interactive, browser-based 3D digital twin and operations control dashboard for the **Electrodynamic Dust Shield (EDS)** lunar mission. This application visualizes lunar orbit navigation, surface landing, and real-time EDS physics simulation to clear electrostatic dust from solar panels.
 
