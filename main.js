@@ -65,7 +65,6 @@ let elBtnHardware, elHardwareStatusText;
 let elBtnReturnOrbit, elDescentHud, elHudCoords, elHudStatus;
 let elValueCoverage, elProgressCoverage;
 let elValueEfficiency, elProgressEfficiency;
-let elConsoleTime;
 
 // ─── Header & Performance Panel DOM refs ─────────────────────────────────────
 let elHdrCoverage, elHdrSolar, elHdrPowerRecovered, elHdrEdsStatus;
@@ -831,8 +830,6 @@ function bindUIEvents() {
   elValueEfficiency    = document.getElementById('value-efficiency');
   elProgressEfficiency = document.getElementById('progress-efficiency');
 
-  elConsoleTime = document.getElementById('console-time');
-
   // Header metrics
   elHdrCoverage = document.getElementById('hdr-coverage');
   elHdrSolar    = document.getElementById('hdr-solar');
@@ -1125,9 +1122,19 @@ function resetDust() {
   }
 }
 
+let sharedRaycaster = null;
+let tmpOrigin = null;
+let tmpDir = null;
+
 // ─── Dust Physics Updates ────────────────────────────────────────────────────
 function updateDustSimulation(deltaTime, elapsed) {
   if (!dustPositionsAttr || particles.length === 0) return;
+
+  if (!sharedRaycaster) {
+    sharedRaycaster = new THREE.Raycaster();
+    tmpOrigin = new THREE.Vector3();
+    tmpDir = new THREE.Vector3();
+  }
 
   const phaseMultiplier = state.phase === 3 ? 1.5 : 0.8;
   const baseSpeed = (state.voltage / 2000.0) * phaseMultiplier * 0.06;
@@ -1157,33 +1164,66 @@ function updateDustSimulation(deltaTime, elapsed) {
         const sizeFactor = p.sizeClass === 'small' ? 1.4 : p.sizeClass === 'large' ? 0.35 : 0.85;
         const speed = baseSpeed * sizeFactor;
         const dir = Math.sign(p.x) || (i % 2 === 0 ? 1 : -1);
+        
+        const nx = p.nx || 0, ny = p.ny || 1, nz = p.nz || 0;
+        const normal = new THREE.Vector3(nx, ny, nz);
 
-        p.x += dir * speed * deltaTime;
-        p.z += Math.sin(elapsed * freqHz * 0.35 + i * 0.7) * 0.0008 * (freqHz / 60);
+        // Move along the panel tangent
+        const rawMove = new THREE.Vector3(
+          dir * speed * deltaTime,
+          0,
+          Math.sin(elapsed * freqHz * 0.35 + i * 0.7) * 0.0008 * (freqHz / 60)
+        );
+        rawMove.projectOnPlane(normal);
 
-        // Check if swept off panel edge
-        const box = dustSystem.panelBoxes[p.panelIdx];
-        if (box && (p.x < box.min.x - 0.01 || p.x > box.max.x + 0.01 ||
-                    p.z < box.min.z - 0.01 || p.z > box.max.z + 0.01)) {
+        p.x += rawMove.x;
+        p.y += rawMove.y;
+        p.z += rawMove.z;
+
+        // Raycast back toward the panel surface to detect edges/dropoffs
+        tmpOrigin.set(p.x, p.y, p.z).addScaledVector(normal, 0.02);
+        tmpDir.set(-nx, -ny, -nz).normalize();
+
+        sharedRaycaster.set(tmpOrigin, tmpDir);
+        const hits = sharedRaycaster.intersectObject(dustSystem.panelMeshes[p.panelIdx], false);
+
+        // Ensure we hit the top surface (face normal roughly matches the panel normal)
+        const stillOverPanel = hits.length > 0 && 
+                               hits[0].distance < 0.04 &&
+                               hits[0].face &&
+                               hits[0].face.normal.dot(normal) > 0.5;
+
+        if (!stillOverPanel) {
           p.stuck = false;
-          // Launch along the surface normal + lateral EDS sweep direction
           p.vx = dir * Math.max(0.05, speed * 2.2);
           p.vy = 0.015 + Math.random() * 0.02;
           p.vz = (Math.random() - 0.5) * 0.025;
           dustSystem.stuckCounts[p.panelIdx] = Math.max(0, (dustSystem.stuckCounts[p.panelIdx] || 1) - 1);
+        } else {
+          // Snap particle precisely to surface height along the normal
+          p.x = hits[0].point.x + nx * 0.0022;
+          p.y = hits[0].point.y + ny * 0.0022;
+          p.z = hits[0].point.z + nz * 0.0022;
         }
       } else {
         // Micro-Brownian motion while settled — move along the surface plane
         // (displace tangentially rather than world-axis, stays on tilted panels)
         const nx = p.nx || 0, ny = p.ny || 1, nz = p.nz || 0;
-        // Build a simple tangent from normal
-        const tx = ny; const tz = -nx; // rough tangent in XZ plane
+        const normal = new THREE.Vector3(nx, ny, nz);
+        
         const jitter = 0.00025;
-        p.x += (tx * (Math.random() - 0.5) + (Math.random() - 0.5)) * jitter;
-        p.z += (tz * (Math.random() - 0.5) + (Math.random() - 0.5)) * jitter;
-        // Y follows from normal: re-project onto panel surface (approximate)
-        p.y += ny * (Math.random() - 0.5) * jitter * 0.3;
-        // Clamp to box bounds to prevent drift off panel
+        const rawMove = new THREE.Vector3(
+          (Math.random() - 0.5) * jitter,
+          0,
+          (Math.random() - 0.5) * jitter
+        );
+        rawMove.projectOnPlane(normal);
+
+        p.x += rawMove.x;
+        p.y += rawMove.y;
+        p.z += rawMove.z;
+
+        // Clamp to box bounds to prevent drift off panel (temporary until all movement is purely physical)
         const box = dustSystem.panelBoxes[p.panelIdx];
         if (box) {
           p.x = Math.max(box.min.x, Math.min(box.max.x, p.x));
@@ -1199,26 +1239,6 @@ function updateDustSimulation(deltaTime, elapsed) {
       p.x += p.vx * deltaTime;
       p.y += p.vy * deltaTime;
       p.z += p.vz * deltaTime;
-
-      // Check adhesion: when a falling particle re-enters a panel bounding box
-      // snap it to the box surface (approximate — the exact surface is unavailable
-      // for flying particles without a full raycast, so surfY is still used here).
-      for (let pi = 0; pi < panelCount; pi++) {
-        const box   = dustSystem.panelBoxes[pi];
-        const surfY = dustSystem.panelSurfaces[pi];
-        if (!box) continue;
-        if (p.y <= surfY + 0.012 &&
-            p.x >= box.min.x && p.x <= box.max.x &&
-            p.z >= box.min.z && p.z <= box.max.z) {
-          p.stuck = true;
-          p.y  = surfY + 0.001;
-          p.nx = 0; p.ny = 1; p.nz = 0;  // approximate normal for landed particle
-          p.vx = 0; p.vy = 0; p.vz = 0;
-          p.panelIdx = pi;
-          dustSystem.stuckCounts[pi]++;
-          break;
-        }
-      }
 
       if (p.y < -2.0) p.active = false;
     }
@@ -1388,12 +1408,12 @@ function updateDustSimulation(deltaTime, elapsed) {
   }
 
   // EDS status badge auto-shutdown
-  if (coverage === 0 && state.edsActive) {
+  if (coverage <= 1 && state.edsActive) {
     state.edsActive = false;
     if (elBtnActivate)     elBtnActivate.classList.remove('active');
     if (elBtnActivateText) elBtnActivateText.textContent = 'ACTIVATE COULOMB CLEARING';
     if (elHdrEdsStatus)    { elHdrEdsStatus.textContent = 'STANDBY'; elHdrEdsStatus.className = 'eds-status-badge standby'; }
-    writeLog('EDS auto-shutdown. Solar array fully restored — 100% transmission.', 'success');
+    writeLog(coverage === 0 ? 'EDS auto-shutdown. Solar array fully restored — 100% transmission.' : 'EDS auto-shutdown. Array optimally cleared — residual trace ignored.', 'success');
   }
 }
 
@@ -1460,18 +1480,6 @@ function tick() {
   if (starField && starField.material.uniforms) {
     starField.material.uniforms.uTime.value = elapsed;
   }
-
-  // ── Mission elapsed time ────────────────────────────────────────────────
-  const totalSecs = Math.floor(elapsed);
-  const ms   = Math.floor((elapsed - totalSecs) * 100);
-  const hrs  = Math.floor(totalSecs / 3600).toString().padStart(2, '0');
-  const mins = Math.floor((totalSecs % 3600) / 60).toString().padStart(2, '0');
-  const secs = (totalSecs % 60).toString().padStart(2, '0');
-  const msStr = ms.toString().padStart(2, '0');
-  const timeStr = `T+ ${hrs}:${mins}:${secs}:${msStr}`;
-
-  if (elConsoleTime) elConsoleTime.textContent = timeStr;
-  // (Mission Elapsed removed from header — console timestamp is sufficient)
 
   if (state.mode === 'orbit') {
     // ─── Startup Cinematic Intro ───

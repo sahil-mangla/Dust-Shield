@@ -15,6 +15,8 @@ An interactive, browser-based 3D digital twin and operations control dashboard f
 
 ### 3. Electrodynamic Dust Shield (EDS) Simulation
 - **AC Traveling-Wave Clearing Physics**: Simulates the multi-phase AC high-voltage traveling-wave electrostatic forces used to lift and transport charged lunar regolith particles off the solar panels.
+- **Accurate Surface Physics**: Utilizes precision raycasting and tangential plane projection to ensure dust particles correctly slide across any sloped panel surface and realistically detach off edges without relying on artificial bounding boxes.
+- **Auto-Shutdown & Efficiency**: EDS efficiently clears dust and gracefully auto-shutdowns at a <=1% residual coverage threshold to accurately lock in and preserve net energy recovery metrics.
 - **Interactive Controls Panel**: Real-time configuration inputs:
   - **Voltage (V_pp) Slider**: Adjusts the electrostatic potential strength. Higher voltages clear dust faster and handle heavier particles.
   - **Frequency (Hz) Slider**: Alters the propagation speed of the traveling wave.
