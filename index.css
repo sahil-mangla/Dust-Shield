@@ -1145,3 +1145,146 @@ input[type="range"]::-moz-range-thumb {
   50%  { top: 100%; }
   100% { top: 0%; }
 }
+
+/* ============================================================================
+   RESPONSIVE DESIGN (TABLET & MOBILE)
+   ============================================================================ */
+
+/* ─── Tablet and general mobile (under 768px) ────────────────────────────── */
+@media (max-width: 768px) {
+  .workspace-layout {
+    flex-direction: column;
+    overflow: hidden; /* Avoid main viewport scrolling; control-card will scroll */
+  }
+
+  .left-pane {
+    height: 45dvh;
+    min-height: 320px;
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .control-card {
+    width: 100%;
+    min-width: 0;
+    flex: 1;
+    overflow-y: auto;
+    border-left: none;
+  }
+
+  .inspector-section {
+    padding: var(--sp-3) var(--sp-4); /* Slightly tighter spacing */
+    gap: var(--sp-2);
+  }
+
+  .console-section.expanded {
+    height: 160px; /* Reduced expanded height to not completely cover viewport */
+  }
+}
+
+/* ─── Small Mobile Devices (under 600px) ────────────────────────────────── */
+@media (max-width: 600px) {
+  /* 2-Tier Mobile Header */
+  .app-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: 44px 36px;
+    height: 80px;
+    min-height: 80px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .header-identity {
+    grid-column: 1;
+    grid-row: 1;
+    padding-left: var(--sp-3);
+    flex: none;
+  }
+
+  .header-status {
+    grid-column: 2;
+    grid-row: 1;
+    padding-right: var(--sp-3);
+    flex: none;
+  }
+
+  .header-metrics {
+    grid-column: 1 / span 2;
+    grid-row: 2;
+    background: var(--bg-raised);
+    border-top: 1px solid var(--border-subtle);
+    width: 100%;
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  .metric-item {
+    padding: 0;
+  }
+
+  .metric-divider {
+    display: none; /* Hide dividers in 2-tier mobile strip */
+  }
+
+  /* HUD telemetric compression */
+  .hud-left .sim-text {
+    display: none; /* Hide long "3D SIMULATION - ACTIVE" text */
+  }
+  
+  .hud-left::after {
+    content: "3D";
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.07em;
+  }
+
+  .hud-pill-meter {
+    padding: 2px 6px;
+    gap: 4px;
+  }
+
+  .hud-pill-meter .meter-track {
+    display: none; /* Hide progress track to fit both pills */
+  }
+
+  .hud-center {
+    gap: var(--sp-2);
+  }
+
+  /* Return to orbit button compression */
+  .btn-return-orbit {
+    padding: 6px;
+    border-radius: 50%;
+    top: var(--sp-2);
+    right: var(--sp-2);
+  }
+
+  .btn-return-orbit span:not(.material-symbols-outlined) {
+    display: none; /* Hide "Return to Orbit" text, keep only icon */
+  }
+
+  /* Bottom coord/FPS bar compression */
+  .viewport-overlay-bottom {
+    padding: 0 var(--sp-2);
+  }
+
+  .coord-readout {
+    font-size: 0.54rem;
+  }
+
+  .buffer-bar-container {
+    display: none; /* Hide sliding buffer bar to make room */
+  }
+  
+  .fps-counter {
+    font-size: 0.54rem;
+  }
+
+  .hud-box {
+    min-width: 280px;
+    padding: var(--sp-4);
+  }
+}

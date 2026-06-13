@@ -27,6 +27,11 @@ An interactive, browser-based 3D digital twin and operations control dashboard f
 - **Mission Status Indicators**: Visual warnings and alerts (e.g. system status, high voltage warning, signal quality).
 - **Mock MCU / UART Terminal**: Toggleable hardware serial console mimicking an ESP32/MCU UART interface. Shows mock telemetry payloads, status frames, and allows manual control sequence injections.
 
+### 5. Responsive Mobile & Tablet Layout
+- **Vertical Workspace Stacking**: On smaller viewports (< 768px), the layout shifts to stack the 3D viewport at the top (`45vh`) with scrollable parameter controls below, ensuring users can interact with sliders while observing the real-time simulation.
+- **2-Tier Mobile Header**: Smartphone displays (< 600px) use a CSS Grid reflow that splits the header into an identity row and a secondary telemetry ribbon, keeping all data points visible and un-clipped.
+- **Compressed HUD Overlay Elements**: The 3D overlay panel compresses telemetry pills (hiding progress bar tracks) and shrinks the orbit buttons to maximize canvas visibility.
+
 ---
 
 ##  Scientific Energy Recovery Model
