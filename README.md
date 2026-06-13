@@ -93,9 +93,40 @@ The Electrodynamic Dust Shield (EDS) physical subsystem utilizes a high-voltage 
 - **3-Phase AC Electrode Routing**: An interdigitated electrode pattern on the top layer, routed using a 3-phase network (Phases A, B, and C) connected through vias to the bottom layer to generate a continuous traveling-wave field.
 - **Driver Circuitry**: Built around an ESP32-C3-MINI-1-N4 microcontroller driving a high-speed TC4420 driver and a flyback transformer circuit to step up the low-voltage input to high-voltage AC waveforms.
 
-![EDS PCB Schematic](hardware/eds_pcb_schematic.png)
+### Schematic & Design Views
 
-[Download Gerber Files (ZIP)](hardware/eds_pcb_gerbers.zip)
+| View Type | Image |
+| :--- | :--- |
+| **Circuit Schematic** | ![Circuit Schematic](hardware/schematic.png) |
+| **Photorealistic Render** | ![Photorealistic Render](hardware/photoview.png) |
+| **PCB Top & Bottom Layout** | ![PCB Top & Bottom Layout](hardware/pcb_top&bottom.png) |
+| **3D PCB Render** | ![3D PCB Render](hardware/3dview.png) |
+| **2D PCB Layout** | ![2D PCB Layout](hardware/2d%20view.png) |
+
+### Bill of Materials (BOM)
+
+The following components are required for assembling the EDS high-voltage driver board (as specified in [BOM_dustshield_final_2026-06-11.csv](hardware/BOM_dustshield_final_2026-06-11.csv)):
+
+| ID | Component Name | Designator | Footprint | Qty | Manufacturer Part | Manufacturer | Supplier Part (LCSC) |
+| :--- | :--- | :--- | :--- | :---: | :--- | :--- | :--- |
+| 1 | 10uF | C1 | C0805 | 1 | CC0805X5R16V106MN | TORCH(火炬) | C53084529 |
+| 2 | 100nF | C4 | CAP-TH_L5.1-W3.2-P5.08-D0.50 | 1 | C320C104K3G5TA7301 | KEMET(基美) | C2308177 |
+| 3 | 10uF | C5 | C1206 | 1 | CL31A106KAHNNNE | SAMSUNG(三星) | C9807 |
+| 4 | 10uF | C6 | CAPC3216X180N | 1 | - | - | - |
+| 5 | C100nf | C_POT_FILTER | C100NF | 1 | - | - | - |
+| 6 | SUF4007 | D1, D2, D3, D4, D5 | DO-213AB_L5.0-W2.5-RD | 5 | SUF4007 | DIOTEC(德欧泰克) | C212757 |
+| 7 | DC Power Jack 2.5mm | DC1 | DC-IN-TH_L13.0-W10.0-332114NA0 | 1 | DC Power Jack bore 2.5mm L 13mm | - | C9900076240 |
+| 8 | ITO_HV (Screw Terminal) | J2 | SCREW_TERMINAL 2WAY | 1 | Screw terminal 2p | - | - |
+| 9 | IRF740PBF N-Ch MOSFET | Q1 | TO-220AB-3_L10.0-W4.5-P2.54-L | 1 | IRF740PBF | OSEN(欧芯) | C34373758 |
+| 10 | 10MΩ | R2 | 12Z-2010 | 1 | - | - | - |
+| 11 | 10kΩ | R3 | R0603 | 1 | 0603WAF1002T5E | UNI-ROYAL(厚声) | C25804 |
+| 12 | 10Ω | R4, R5 | R0603 | 2 | 0603WAF100JT5E | UNI-ROYAL(厚声) | C22859 |
+| 13 | 10kΩ Potentiometer | R_POT | RES-ADJ-TH_3296W | 1 | 3296W-1-103LF | BOURNS | C34846 |
+| 14 | Flyback Transformer | T1 | - | 1 | - | - | - |
+| 15 | ESP32-C3-MINI-1-N4 | U1 | XCVR_ESP32-C3-MINI-1-N4 | 1 | - | - | - |
+| 16 | SN74HCT125DR-JSM Buffer | U2 | SOIC-14_L8.7-W3.9-P1.27-LS6.0-BL | 1 | SN74HCT125DR-JSM | JSMSEMI(杰盛微) | C53436286 |
+| 17 | LM1117-3.3 LDO | U3 | TO-252-2_L6.6-W6.1-P4.58-LS9.7-BR-1 | 1 | LM1117-3.3 | - | C2887172 |
+| 18 | TC4420CPA MOSFET Driver | U4 | DIP-8_L9.8-W6.6-P2.54-LS7.6-BL | 1 | TC4420CPA | MICROCHIP(美国微芯) | C48733 |
 
 ---
 
