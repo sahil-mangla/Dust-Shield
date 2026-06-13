@@ -83,7 +83,24 @@ Please run it through a local web server:
 
 ---
 
+## 🛠️ Hardware Schematics & PCB Design
+
+The Electrodynamic Dust Shield (EDS) physical subsystem utilizes a high-voltage driver board and an electrode array designed to generate multi-phase AC traveling electrostatic waves.
+
+### Hardware Layout Specification
+- **Electrode Trace Width**: 0.4 mm copper traces optimized for uniform electrostatic charge distribution.
+- **Gap Spacing**: 0.6 mm spacing between adjacent electrode traces, designed to prevent high-voltage breakdown and arcing in low-pressure environments.
+- **3-Phase AC Electrode Routing**: An interdigitated electrode pattern on the top layer, routed using a 3-phase network (Phases A, B, and C) connected through vias to the bottom layer to generate a continuous traveling-wave field.
+- **Driver Circuitry**: Built around an ESP32-C3-MINI-1-N4 microcontroller driving a high-speed TC4420 driver and a flyback transformer circuit to step up the low-voltage input to high-voltage AC waveforms.
+
+![EDS PCB Schematic](hardware/eds_pcb_schematic.png)
+
+[Download Gerber Files (ZIP)](hardware/eds_pcb_gerbers.zip)
+
+---
+
 ## ⚙️ Technologies Used
 - **Three.js** (loaded via CDN) for the web-based WebGL 3D rendering pipeline.
 - **HTML5 & Vanilla Javascript (ES6+)** for application logic, physics simulation, and state management.
 - **Vanilla CSS3** featuring CSS variables, modern flexbox/grid layout systems, glassmorphism filters, and CSS keyframe animations.
+
