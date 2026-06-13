@@ -6,20 +6,19 @@ An interactive, browser-based 3D digital twin and operations control dashboard f
 
 ### 1. 3D Lunar Orbit & Navigation
 - **Photorealistic Moon & Space Environment**: Renders a textured 3D Moon using high-resolution NASA albedo maps (`assets/nasa/moon.jpg`) suspended in a realistic space skybox with custom procedural starfields.
-- **Landing Indicator**: A pulsing, interactive overlay button (`#btn-land`) floats dynamically above the lunar target. Hovering over it expands the button to "INITIATE LANDING".
-- **Dynamic Descent Logic**: Clicking the landing button triggers a smooth animation that zooms the camera down to the lunar surface. The landing coordinates are dynamically calculated based on the user's current camera viewport look direction.
+- **Automated Cinematic Descent**: Initiates an automated descent sequence after a brief orbital telemetry initialization sequence (approx. 6.5s), transitioning the viewport down to the lunar landing site.
+- **Dynamic Transition**: Smoothly blends the 3D scene from the global lunar view into the localized lunar surface group and terrain.
 
 ### 2. Lunar Surface Operations & 3D Rover View
 - **NASA Lunar Rover Integration**: Loads a 3D GLTF rover model (`assets/nasa/rover.glb`) situated directly on the lunar dust bed. A procedurally generated high-fidelity landing pad/rover fallback is rendered if the asset is missing.
 - **Focused Camera Zoom**: The camera focuses directly on the rover's solar panels where the dust accumulation and clearing simulation takes place.
-- **Return to Orbit**: A dedicated HUD controls action panel contains a "Return to Orbit" button (`#btn-return-orbit`) that seamlessly ascends the camera back into orbit, resetting the mission view.
 
 ### 3. Electrodynamic Dust Shield (EDS) Simulation
 - **AC Traveling-Wave Clearing Physics**: Simulates the multi-phase AC high-voltage traveling-wave electrostatic forces used to lift and transport charged lunar regolith particles off the solar panels.
-- **Interactive Controls Panel**: Real-time configuration sliders for:
-  - **Voltage (V_pp)**: Adjusts the electrostatic potential strength. Higher voltages clear dust faster and handle heavier particles.
-  - **Frequency (Hz)**: Alters the propagation speed of the traveling wave.
-  - **Phase Angle (θ)**: Shifts phase alignment to optimize particle transport direction.
+- **Interactive Controls Panel**: Real-time configuration inputs:
+  - **Voltage (V_pp) Slider**: Adjusts the electrostatic potential strength. Higher voltages clear dust faster and handle heavier particles.
+  - **Frequency (Hz) Slider**: Alters the propagation speed of the traveling wave.
+  - **Phase Mode Selector**: Toggles between 2-Phase and 3-Phase AC wave configurations to optimize travel characteristics.
 - **Dust Coverage Telemetry**: Real-time readouts displaying remaining dust coverage percentage, active solar panel efficiency (inversely proportional to dust coverage), and electrostatic field status.
 
 ### 4. Telemetry & Hardware Integration HUD
