@@ -38,6 +38,19 @@ DustShield/
 │       ├── moon_albedo.jpg   # High resolution lunar albedo map
 │       ├── rover.glb         # 3D GLTF model of the lunar rover
 │       └── moon_small.glb    # Lightweight moon 3D geometry
+├── firmware/
+│   └── firmware.ino          # ESP32-C3 hardware control firmware (C++/Arduino)
+├── gerber/
+│   ├── How-to-order-PCB.txt  # Instructions for PCB manufacturing
+│   └── *.DRL, *.G*, etc.     # Production-ready Gerber PCB fabrication files
+├── hardware/
+│   ├── BOM_dustshield_final_2026-06-11.csv       # Bill of Materials
+│   ├── PCB_dustshield_final_2026-06-11.pcbdoc    # EasyEDA PCB design project source file
+│   ├── schematic.png         # Circuit Schematic View
+│   ├── photoview.png         # Photorealistic Render View
+│   ├── pcb_top&bottom.png    # Top/Bottom Track routing Layout
+│   ├── 3dview.png            # 3D PCB render
+│   └── 2d view.png           # 2D outline representation
 ├── index.html                # Main HUD dashboard and 3D container layout
 ├── index.css                 # Glassmorphic premium dashboard styling & animations
 ├── main.js                   # Three.js rendering engine, descent/ascent logic, & EDS physics loop
@@ -134,4 +147,6 @@ The following components are required for assembling the EDS high-voltage driver
 - **Three.js** (loaded via CDN) for the web-based WebGL 3D rendering pipeline.
 - **HTML5 & Vanilla Javascript (ES6+)** for application logic, physics simulation, and state management.
 - **Vanilla CSS3** featuring CSS variables, modern flexbox/grid layout systems, glassmorphism filters, and CSS keyframe animations.
+- **EasyEDA** for electronic hardware schematic design, PCB layout routing, and production-ready manufacturing outputs (Gerber files).
+- **C++ & Arduino** for the micro-controller firmware targeting the ESP32-C3 platform.
 
