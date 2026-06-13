@@ -27,6 +27,48 @@ An interactive, browser-based 3D digital twin and operations control dashboard f
 
 ---
 
+##  Scientific Energy Recovery Model
+
+The digital twin implements an empirical solar attenuation model based on the Beer-Lambert law to simulate how dust coverage degrades solar cell efficiency and to compute the net energy recovered during electrodynamic clearing.
+
+### 1. Attenuation & Transmission Model
+The transmission factor of light through the dust layer $T(C)$ is modeled as an exponential decay function of the dust coverage percentage $C$ ($0 \le C \le 100$):
+
+$$T(C) = e^{-K \cdot C}$$
+
+Where:
+- $T(C)$ is the fraction of light transmitted to the solar cells ($0 \le T \le 1$).
+- $K = 0.03$ is the dust attenuation coefficient, calibrated to match lunar regolith spectral absorption and scattering data.
+
+### 2. Instantaneous Solar Power Output
+The instantaneous power output of the solar panel array $P(C)$ at any coverage level $C$ is calculated as:
+
+$$P(C) = P_{\text{max}} \cdot T(C) = P_{\text{max}} \cdot e^{-K \cdot C}$$
+
+Where:
+- $P_{\text{max}} = 240 \text{ W}$ is the peak power output when the solar panels are completely clean ($C = 0\%$).
+
+### 3. Baseline (Fully Dusty) Power
+When the solar panel is completely covered in dust ($C = 100\%$), it still generates a minimal amount of power from diffuse or ambient scattered light:
+
+$$P_{\text{base}} = P_{\text{max}} \cdot e^{-K \cdot 100} = 240 \cdot e^{-0.03 \cdot 100} = 240 \cdot e^{-3} \approx 11.95 \text{ W}$$
+
+### 4. Instantaneous Power Recovered
+The power recovered ($P_{\text{recovered}}$) relative to the worst-case fully dusty baseline is:
+
+$$P_{\text{recovered}}(C) = \max\left(0, P(C) - P_{\text{base}}\right)$$
+
+### 5. Net Energy Recovered Accumulation
+The total net energy recovered ($E_{\text{recovered}}$, in Watt-hours) is the time-integral of the recovered power, accumulated only while the electrostatic dust shield (EDS) is actively clearing dust (i.e. when the EDS is active and $C > 0$):
+
+$$E_{\text{recovered}} = \int_{t_{\text{start}}}^{t_{\text{end}}} P_{\text{recovered}}(t) \, dt \approx \sum_{t} \frac{P_{\text{recovered}}(t) \cdot \Delta t}{3600}$$
+
+Where:
+- $\Delta t$ is the simulation time step between animation frames (in seconds).
+- The factor of $3600$ converts seconds to hours to yield energy in Watt-hours ($\text{Wh}$).
+
+---
+
 ## 📁 Project Structure
 
 ```bash
